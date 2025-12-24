@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thủ Công Việt - Tinh Hoa Nghệ Nhân</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root { --primary: #d35400; --gold: #b8860b; --dark: #2c3e50; --bg: #fdfaf6; --white: #ffffff; }
+        body { font-family: 'Quicksand', sans-serif; margin: 0; background: var(--bg); color: var(--dark); overflow-x: hidden; }
+
+        /* --- NAVBAR --- */
+        .navbar { background: #fff; height: 80px; display: flex; align-items: center; justify-content: space-between; padding: 0 5%; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .logo { font-family: 'Playfair Display'; font-size: 22px; color: var(--primary); font-weight: bold; text-decoration: none; }
+        .nav-links { display: flex; gap: 20px; align-items: center; }
+        .nav-item { text-decoration: none; color: var(--dark); font-weight: 700; font-size: 14px; transition: 0.3s; }
+        .nav-item:hover { color: var(--primary); }
+        .collection-box { padding: 8px 12px; border-radius: 8px; border: 2px solid var(--primary); font-weight: 700; color: var(--primary); outline: none; cursor: pointer; background: white; }
+
+        /* --- GRID & CARD --- */
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 25px; padding: 30px 5%; min-height: 50vh; }
+        .p-card { background: var(--white); border-radius: 15px; overflow: hidden; border: 1px solid #eee; cursor: pointer; transition: 0.3s; text-align: center; position: relative; }
+        .p-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .p-card img { width: 100%; height: 250px; object-fit: cover; }
+        .sale-tag { position: absolute; top: 10px; left: 10px; background: #e74c3c; color: white; padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: bold; z-index: 5; }
+        .p-price { color: var(--primary); font-weight: 800; font-size: 18px; margin: 10px 0; }
+
+        /* --- MODAL CHI TIẾT --- */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; padding: 15px; overflow-y: auto; }
+        .modal-content { background: #fff; max-width: 1100px; margin: auto; border-radius: 20px; display: grid; grid-template-columns: 1.2fr 1fr; overflow: hidden; position: relative; animation: slideUp 0.3s; }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-left { background: #1a1a1a; display: flex; flex-direction: column; position: relative; height: 680px; }
+        #zoom-viewer { flex: 1; background: #000; }
+        .zoom-hint { position: absolute; bottom: 10px; left: 10px; z-index: 5; color: white; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 5px; font-size: 11px; }
+        .modal-right { padding: 30px; height: 680px; overflow-y: auto; }
+
+        /* --- CHỨNG THƯ POPUP --- */
+        #certPopup { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 3000; align-items: center; justify-content: center; padding: 20px; }
+        .cert-card { background: white; padding: 30px; border-radius: 15px; max-width: 500px; width: 100%; position: relative; border: 8px double var(--gold); text-align: center; }
+        .cert-card h3 { color: var(--gold); font-family: 'Playfair Display'; font-size: 24px; margin-bottom: 15px; }
+        .cert-qr { width: 160px; height: 160px; margin: 20px auto; border: 1px solid #eee; padding: 10px; }
+
+        /* --- INPUTS & BUTTONS --- */
+        .btn-cert { background: var(--gold); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; text-transform: uppercase; font-size: 13px; }
+        .order-input { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; outline: none; font-family: 'Quicksand'; }
+        .pay-btn { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 10px; cursor: pointer; text-align: center; font-weight: 700; }
+        .pay-btn.active { border: 2px solid var(--primary); color: var(--primary); background: #fff5eb; }
+        .btn-confirm { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 15px; font-size: 16px; }
+        
+        /* CSS Mới cho Chi tiết & Số lượng */
+        .desc-container { margin: 15px 0; background: #fffaf5; padding: 12px; border-radius: 10px; border-left: 4px solid var(--gold); font-size: 14px; line-height: 1.6; color: #555; }
+        .qty-selector { display: flex; align-items: center; gap: 15px; margin: 20px 0; }
+        .qty-btn { width: 35px; height: 35px; border: 1px solid #ddd; background: white; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .qty-btn:hover { background: #f0f0f0; }
+
+        .promo-box { background: #fff5eb; padding: 12px; border-radius: 10px; border: 1px dashed var(--gold); margin: 15px 0; }
+        .promo-row { display: flex; gap: 8px; margin-top: 5px; }
+
+        @media (max-width: 900px) { .modal-content { grid-template-columns: 1fr; } .modal-left, .modal-right { height: auto; } #zoom-viewer { height: 350px; } }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <a href="index.html" class="logo"><i class="fas fa-crown"></i> THỦ CÔNG VIỆT</a>
+    <div class="nav-links">
+        <a href="index.html" class="nav-item">TRANG CHỦ</a>
+        <select class="collection-box" id="categoryFilter" onchange="filterProducts()">
+            <option value="all">💎 TẤT CẢ TÁC PHẨM</option>
+            <option value="Gốm sứ">🏺 Gốm Sứ</option>
+            <option value="Đồ gỗ">🪵 Mỹ Nghệ Gỗ</option>
+            <option value="Mây tre đan">🎋 Mây Tre</option>
+        </select>
+        <a href="kiem-tra-don-hang.html" class="nav-item">TRA CỨU ĐƠN</a>
+    </div>
+</nav>
+
+<div id="mainGrid" class="product-grid"></div>
+
+<div id="productModal" class="modal">
+    <div class="modal-content">
+        <span onclick="closeModal()" style="position:absolute; top:15px; right:20px; font-size:30px; cursor:pointer; z-index: 100; color: white; background: rgba(0,0,0,0.3); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">&times;</span>
+        
+        <div class="modal-left">
+            <div id="zoom-viewer"></div>
+            <div class="zoom-hint"><i class="fas fa-search-plus"></i> Cuộn để soi chi tiết nghệ nhân</div>
+            <div id="map" style="height:150px; margin: 15px; border-radius:10px; border: 2px solid white;"></div>
+        </div>
+
+        <div class="modal-right">
+            <button class="btn-cert" onclick="openCert()">
+                <i class="fas fa-award"></i> XEM NGUỒN GỐC & CHỨNG THƯ
+            </button>
+
+            <h2 id="detailTitle" style="margin:0; font-family:'Playfair Display'; color: var(--dark);"></h2>
+            
+            <div class="desc-container" id="productDesc">
+                </div>
+
+            <div class="qty-selector">
+                <span style="font-weight: 700; font-size: 14px;">Số lượng:</span>
+                <button class="qty-btn" onclick="updateQty(-1)">-</button>
+                <span id="qtyDisplay" style="font-weight: 700; width: 20px; text-align: center;">1</span>
+                <button class="qty-btn" onclick="updateQty(1)">+</button>
+            </div>
+
+            <div style="display:flex; gap:10px; margin:15px 0;">
+                <div id="btnCOD" class="pay-btn active" onclick="setPay('COD')">Tiền mặt</div>
+                <div id="btnQR" class="pay-btn" onclick="setPay('QR')">Quét mã QR</div>
+            </div>
+
+            <div id="qr-display" style="display:none; text-align:center; margin-bottom: 10px; background:#fffdf9; padding:15px; border:1px dashed var(--gold); border-radius:10px;">
+                <p style="margin:0; font-weight:bold; color:#d35400;">CAKE BY VPBANK</p>
+                <p style="margin:5px 0; font-size:16px; font-weight:bold;">TRẦN VIỆT ĐỨC</p>
+                <img id="qrImg" src="" style="width:140px; height:140px; border: 5px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                <p style="font-size:11px; color:#555; margin-top:5px;">Nội dung: <span id="qrInfo" style="font-weight:bold;"></span></p>
+            </div>
+
+            <div style="background:#f8f9fa; padding:15px; border-radius:10px; border: 1px solid #eee;">
+                <div style="display:flex; justify-content:space-between;"><span>Giá vật phẩm:</span><b id="pPrice"></b></div>
+                <div style="display:flex; justify-content:space-between; margin:5px 0;"><span>Phí ship:</span><b>25.000₫</b></div>
+                <div id="promoRowDisplay" style="display:none; justify-content:space-between; color: #27ae60; margin-bottom: 5px;">
+                    <span>Ưu đãi (<span id="promoPercent">0</span>%):</span><b id="pDiscount">-0₫</b>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:20px; color:var(--primary); border-top: 1px dashed #ccc; padding-top: 8px;">
+                    <span>TỔNG CỘNG:</span><b id="pTotal"></b>
+                </div>
+            </div>
+
+            <div class="promo-box">
+                <label style="font-size: 12px; font-weight: 700; color: var(--gold);">MÃ ƯU ĐÃI</label>
+                <div class="promo-row">
+                    <input type="text" id="promoInput" class="order-input" style="margin:0;" placeholder="Nhập mã giảm giá...">
+                    <button onclick="applyPromo()" style="background: var(--gold); color: white; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">ÁP DỤNG</button>
+                </div>
+                <div id="promoStatus" style="font-size:12px; margin-top:5px; font-weight:700;"></div>
+            </div>
+
+            <input type="text" id="orderName" class="order-input" placeholder="Họ tên người nhận...">
+            <input type="tel" id="orderPhone" class="order-input" placeholder="Số điện thoại...">
+            <input type="text" id="orderAddress" class="order-input" placeholder="Địa chỉ giao hàng chính xác...">
+            
+            <button class="btn-confirm" onclick="orderNow()">XÁC NHẬN ĐẶT HÀNG</button>
+        </div>
+    </div>
+</div>
+
+<div id="certPopup">
+    <div class="cert-card">
+        <span onclick="closeCert()" style="position:absolute; top:10px; right:15px; cursor:pointer; font-size:24px;">&times;</span>
+        <i class="fas fa-certificate" style="font-size: 40px; color: var(--gold); margin-bottom: 10px;"></i>
+        <h3>CHỨNG THƯ NGHỆ NHÂN</h3>
+        <p style="font-size: 14px; margin-bottom: 5px;">Tác phẩm: <strong id="certProdName"></strong></p>
+        <p style="font-size: 13px; color: #666;">Mã định danh bảo mật: <span id="certId" style="color:var(--gold); font-weight: bold;"></span></p>
+        <hr style="border: 0.5px solid #eee; margin: 15px 0;">
+        <img id="certQrImg" class="cert-qr" src="">
+        <p style="font-size: 12px; font-style: italic; color: #888;">Quét mã QR để truy xuất nguồn gốc tại xưởng nghệ nhân</p>
+        <div style="margin-top:15px; font-family: 'Playfair Display'; color: var(--gold); font-weight: bold; letter-spacing: 1px;">TINH HOA THỦ CÔNG VIỆT</div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = { databaseURL: "https://thucongviet-system-default-rtdb.firebaseio.com" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    let allProducts = [], map = null, currentP = null, dzViewer = null;
+    let currentDiscount = 0, appliedPromo = "", currentQty = 1;
+
+    // Tải dữ liệu sản phẩm
+    db.ref('products').on('value', s => {
+        allProducts = [];
+        s.forEach(c => { let p = c.val(); p.id = c.key; allProducts.push(p); });
+        filterProducts(); 
+    });
+
+    function formatVND(n){ return new Intl.NumberFormat('vi-VN').format(n)+"₫"; }
+
+    function openP(p) {
+        currentP = p;
+        currentDiscount = 0;
+        appliedPromo = "";
+        currentQty = 1; // Reset số lượng về 1
+        
+        document.getElementById('promoInput').value = "";
+        document.getElementById('promoStatus').innerText = "";
+        document.getElementById('promoRowDisplay').style.display = "none";
+        document.getElementById('detailTitle').innerText = p.info1;
+        document.getElementById('qtyDisplay').innerText = currentQty;
+
+        // Hiển thị Chi tiết sản phẩm (Mô tả + Chất liệu)
+        document.getElementById('productDesc').innerHTML = `
+            <div style="margin-bottom:5px;"><b>Chất liệu:</b> ${p.category}</div>
+            <div><b>Mô tả:</b> ${p.desc || "Tác phẩm thủ công tinh xảo được chế tác tỉ mỉ bởi nghệ nhân làng nghề, mang đậm hồn cốt văn hóa Việt."}</div>
+        `;
+        
+        updatePriceDisplay();
+        document.getElementById('productModal').style.display = 'block';
+        initDeepZoom(p.img);
+        initMap([p.lat || 21.0123, p.lng || 105.9567]);
+    }
+
+    // Hàm cập nhật số lượng
+    function updateQty(val) {
+        currentQty += val;
+        if(currentQty < 1) currentQty = 1;
+        document.getElementById('qtyDisplay').innerText = currentQty;
+        updatePriceDisplay();
+    }
+
+    // Xử lý Chứng thư
+    function openCert() {
+        alert("Dạ, hệ thống đang truy xuất chứng thư bảo mật cho tác phẩm này...");
+        document.getElementById('certProdName').innerText = currentP.info1;
+        document.getElementById('certId').innerText = "ID-" + currentP.id.slice(-8).toUpperCase();
+        document.getElementById('certQrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=VERIFY_PRODUCT_${currentP.id}`;
+        document.getElementById('certPopup').style.display = 'flex';
+    }
+
+    function closeCert() { document.getElementById('certPopup').style.display = 'none'; }
+
+    // Áp dụng mã ưu đãi
+    function applyPromo() {
+        const code = document.getElementById('promoInput').value.trim().toUpperCase();
+        const status = document.getElementById('promoStatus');
+        if(!code) return;
+
+        db.ref('promotions').orderByChild('code').equalTo(code).once('value', snap => {
+            if(snap.exists()) {
+                let promoData;
+                snap.forEach(c => { promoData = c.val(); });
+                currentDiscount = parseInt(promoData.val);
+                appliedPromo = code;
+                status.style.color = "#27ae60";
+                status.innerText = `✅ Đã áp dụng mã ${code} (-${currentDiscount}%)`;
+                document.getElementById('promoRowDisplay').style.display = "flex";
+                document.getElementById('promoPercent').innerText = currentDiscount;
+                updatePriceDisplay();
+            } else {
+                currentDiscount = 0;
+                appliedPromo = "";
+                status.style.color = "#e74c3c";
+                status.innerText = "❌ Mã không hợp lệ.";
+                document.getElementById('promoRowDisplay').style.display = "none";
+                updatePriceDisplay();
+            }
+        });
+    }
+
+    // Cập nhật giá & QR (Tính theo số lượng)
+    function updatePriceDisplay() {
+        const pricePerUnit = currentP.info2 - (currentP.info2 * (currentP.sale || 0) / 100);
+        const subTotal = pricePerUnit * currentQty;
+        const discountAmount = (subTotal * currentDiscount) / 100;
+        const total = subTotal - discountAmount + 25000;
+        const qrCodeText = "TCV" + currentP.id.slice(-5).toUpperCase();
+
+        document.getElementById('pPrice').innerText = formatVND(subTotal);
+        document.getElementById('pDiscount').innerText = "-" + formatVND(discountAmount);
+        document.getElementById('pTotal').innerText = formatVND(total);
+        document.getElementById('qrInfo').innerText = qrCodeText;
+
+        // Cập nhật QR Image với số tiền mới
+        document.getElementById('qrImg').src = `https://img.vietqr.io/image/CAKE-0366388104-compact.png?amount=${total}&addInfo=THANH TOAN ${qrCodeText}&accountName=TRAN VIET DUC`;
+    }
+
+    function orderNow() {
+        const name = document.getElementById('orderName').value.trim();
+        const phone = document.getElementById('orderPhone').value.trim();
+        const address = document.getElementById('orderAddress').value.trim();
+        if(!name || !phone || !address) return alert("Vui lòng điền đủ thông tin giao hàng!");
+
+        const pricePerUnit = currentP.info2 - (currentP.info2 * (currentP.sale || 0) / 100);
+        const subTotal = pricePerUnit * currentQty;
+        const total = (subTotal - (subTotal * currentDiscount / 100)) + 25000;
+        const method = document.getElementById('btnQR').classList.contains('active') ? "Quét mã QR" : "Tiền mặt (COD)";
+
+        db.ref('orders').push({
+            customer: name, phone: phone, address: address,
+            product: currentP.info1, productId: currentP.id,
+            quantity: currentQty, // Lưu số lượng vào DB
+            total: total, promoCode: appliedPromo, paymentMethod: method,
+            status: "Đang chờ xác nhận", date: new Date().toLocaleString('vi-VN')
+        }).then(() => { 
+            alert(`Đặt hàng thành công! Bạn đã đặt mua ${currentQty} món. Tổng: ${formatVND(total)}`); 
+            closeModal();
+        });
+    }
+
+    function renderGrid(data) {
+        const grid = document.getElementById('mainGrid');
+        grid.innerHTML = "";
+        data.forEach(p => {
+            const final = p.info2 - (p.info2 * (p.sale || 0) / 100);
+            grid.innerHTML += `
+                <div class="p-card" onclick='openP(${JSON.stringify(p)})'>
+                    ${p.sale > 0 ? `<div class="sale-tag">-${p.sale}%</div>` : ''}
+                    <img src="${p.img}">
+                    <div style="padding:15px;">
+                        <div style="font-weight:700; height:40px; overflow:hidden;">${p.info1}</div>
+                        <div class="p-price">${formatVND(final)}</div>
+                    </div>
+                </div>`;
+        });
+    }
+
+    function setPay(t) {
+        document.getElementById('btnCOD').className = 'pay-btn '+(t==='COD'?'active':'');
+        document.getElementById('btnQR').className = 'pay-btn '+(t==='QR'?'active':'');
+        document.getElementById('qr-display').style.display = (t==='QR'?'block':'none');
+    }
+
+    function closeModal(){ document.getElementById('productModal').style.display = 'none'; }
+    
+    function filterProducts() {
+        const v = document.getElementById('categoryFilter').value;
+        renderGrid(v === 'all' ? allProducts : allProducts.filter(p => p.category === v));
+    }
+
+    function initMap(c) {
+        setTimeout(() => {
+            if(map) map.remove();
+            map = L.map('map').setView(c, 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            L.marker(c).addTo(map);
+        }, 300);
+    }
+
+    function initDeepZoom(url) {
+        if (dzViewer) dzViewer.destroy();
+        dzViewer = OpenSeadragon({
+            id: "zoom-viewer", prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
+            tileSources: { type: 'image', url: url },
+            gestureSettingsMouse: { clickToZoom: true, scrollToZoom: true }
+        });
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản Lý Sản Phẩm - Thủ Công Việt</title>
+<style>
+:root {
+    --primary-color: #8B4513;
+    --primary-hover: #65340f;
+    --danger-color: #dc3545;
+    --danger-hover: #a71d2a;
+    --edit-color: #007bff;
+    --edit-hover: #0056b3;
+    --success-color: #28a745;
+    --success-hover: #1e7e34;
+}
+body { font-family: "Segoe UI", sans-serif; background: #f8f7f5; margin: 0; color: #333; }
+.product-listing-page { max-width: 1200px; margin: 30px auto; padding: 20px; }
+
+/* MENU DANH MỤC */
+nav.product-categories { margin-bottom: 40px; text-align: center; }
+nav.product-categories button {
+    background: none;
+    border: 2px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-weight: 600;
+    margin: 5px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+nav.product-categories button.active,
+nav.product-categories button:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+/* FORM THÊM */
+.add-product-section {
+    background: #fff; padding: 30px; border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.07); margin-bottom: 50px;
+}
+#add-product-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 20px; }
+.form-group { display: flex; flex-direction: column; }
+.form-group label { font-weight: 600; margin-bottom: 6px; }
+.form-group input, .form-group select {
+    padding: 10px; border: 2px solid #ddd; border-radius: 8px;
+}
+.btn-add {
+    background: var(--success-color); color: #fff; border: none; padding: 12px;
+    border-radius: 8px; cursor: pointer; transition: 0.3s;
+}
+.btn-add:hover { background: var(--success-hover); }
+
+/* LƯỚI SẢN PHẨM */
+.product-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 30px; }
+.product-item { background:#fff; border-radius:12px; box-shadow:0 5px 15px rgba(0,0,0,0.07); overflow:hidden; }
+.product-item img { width:100%; height:270px; object-fit:cover; }
+.product-details { padding:20px; text-align:center; }
+.product-details h3 { margin:10px 0; }
+.price { font-weight:700; margin:10px 0 20px; }
+.product-actions { display:flex; justify-content:center; gap:10px; }
+.btn-action { border:none; color:#fff; padding:10px 15px; border-radius:8px; cursor:pointer; font-weight:600; }
+.btn-edit { background:var(--edit-color); }
+.btn-delete { background:var(--danger-color); }
+.btn-delete-all {
+    background: var(--danger-color); color:#fff; border:none; padding:10px 18px;
+    border-radius:8px; cursor:pointer; font-weight:600; margin-bottom:20px;
+}
+.btn-delete-all:hover { background: var(--danger-hover); }
+
+/* MODAL */
+.modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; }
+.modal.show { display:flex; }
+.modal-content { background:#fff; padding:30px; border-radius:12px; width:90%; max-width:600px; position:relative; }
+.btn-close { position:absolute; right:20px; top:15px; font-size:28px; cursor:pointer; }
+.btn-save { background:var(--primary-color); color:#fff; border:none; padding:12px; border-radius:8px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<main class="product-listing-page">
+    <h2>Trang Quản Lý Sản Phẩm</h2>
+
+    <!-- MENU DANH MỤC -->
+    <nav class="product-categories" id="category-menu">
+        <button data-cat="all" class="active">Tất cả</button>
+        <button data-cat="Gốm sứ">Gốm sứ</button>
+        <button data-cat="Đồ gỗ">Đồ gỗ</button>
+        <button data-cat="Thổ cẩm">Thổ cẩm</button>
+        <button data-cat="Tranh thêu">Tranh thêu</button>
+    </nav>
+
+    <!-- FORM THÊM -->
+    <section class="add-product-section">
+        <h3>Thêm Sản Phẩm Mới</h3>
+        <form id="add-product-form">
+            <div class="form-group">
+                <label for="add-name">Tên sản phẩm:</label>
+                <input type="text" id="add-name" required>
+            </div>
+            <div class="form-group">
+                <label for="add-price">Giá (VNĐ):</label>
+                <input type="number" id="add-price" required>
+            </div>
+            <div class="form-group">
+                <label for="add-category">Danh mục:</label>
+                <select id="add-category" required>
+                    <option value="">-- Chọn loại --</option>
+                    <option value="Gốm sứ">Gốm sứ</option>
+                    <option value="Đồ gỗ">Đồ gỗ</option>
+                    <option value="Thổ cẩm">Thổ cẩm</option>
+                    <option value="Tranh thêu">Tranh thêu</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="add-image">Chọn ảnh:</label>
+                <input type="file" id="add-image" accept="image/*" required>
+            </div>
+            <button type="submit" class="btn-add">Thêm Ngay</button>
+        </form>
+    </section>
+
+    <button class="btn-delete-all" id="clearAllBtn">🗑️ Xóa Tất Cả Dữ Liệu</button>
+
+    <h2 id="list-title" style="font-size:2rem;">Tất Cả Sản Phẩm</h2>
+    <section class="product-grid" id="product-grid"></section>
+</main>
+
+<!-- MODAL SỬA -->
+<div id="edit-modal" class="modal">
+    <div class="modal-content">
+        <span class="btn-close" id="close-modal">&times;</span>
+        <h3>Chỉnh Sửa Sản Phẩm</h3>
+        <form id="edit-product-form">
+            <input type="hidden" id="edit-id">
+            <div class="form-group">
+                <label for="edit-name">Tên sản phẩm:</label>
+                <input type="text" id="edit-name" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-price">Giá (VNĐ):</label>
+                <input type="number" id="edit-price" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-category">Danh mục:</label>
+                <select id="edit-category" required>
+                    <option value="Gốm sứ">Gốm sứ</option>
+                    <option value="Đồ gỗ">Đồ gỗ</option>
+                    <option value="Thổ cẩm">Thổ cẩm</option>
+                    <option value="Tranh thêu">Tranh thêu</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-image">Đổi ảnh (tùy chọn):</label>
+                <input type="file" id="edit-image" accept="image/*">
+            </div>
+            <button type="submit" class="btn-save">Lưu Thay Đổi</button>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+    const LS_KEY = "productData_v1";
+    let products = JSON.parse(localStorage.getItem(LS_KEY)) || [
+        { id: 1, name: "Bình Gốm Họa Tiết Sen", price: 950000, category: "Gốm sứ", image: "https://via.placeholder.com/300x270/D2B48C/FFFFFF?text=Gốm+Sứ" },
+        { id: 2, name: "Tượng Gỗ Di Lặc", price: 4200000, category: "Đồ gỗ", image: "https://via.placeholder.com/300x270/8B4513/FFFFFF?text=Đồ+Gỗ" },
+        { id: 3, name: "Khăn Thổ Cẩm", price: 680000, category: "Thổ cẩm", image: "https://via.placeholder.com/300x270/CD853F/FFFFFF?text=Thổ+Cẩm" },
+        { id: 4, name: "Tranh Thêu Phong Cảnh", price: 1500000, category: "Tranh thêu", image: "https://via.placeholder.com/300x270/DAA520/FFFFFF?text=Tranh+Thêu" }
+    ];
+
+    const grid = document.getElementById("product-grid");
+    const listTitle = document.getElementById("list-title");
+    const addForm = document.getElementById("add-product-form");
+    const editForm = document.getElementById("edit-product-form");
+    const editModal = document.getElementById("edit-modal");
+    const closeModal = document.getElementById("close-modal");
+    const categoryMenu = document.getElementById("category-menu");
+    const clearAllBtn = document.getElementById("clearAllBtn");
+    let currentFilter = "all";
+
+    function saveToLocal(){ localStorage.setItem(LS_KEY, JSON.stringify(products)); }
+    function formatCurrency(n){ return new Intl.NumberFormat('vi-VN').format(n) + " VNĐ"; }
+
+    function renderProducts(){
+        grid.innerHTML = '';
+        const filtered = currentFilter==="all" ? products : products.filter(p=>p.category===currentFilter);
+        listTitle.innerHTML = currentFilter==="all"
+            ? `Tất Cả Sản Phẩm (${filtered.length})`
+            : `Đang xem: ${currentFilter} (${filtered.length})`;
+        filtered.forEach(p=>{
+            const div=document.createElement("div");
+            div.className="product-item";
+            div.dataset.id=p.id;
+            div.innerHTML=`
+                <img src="${p.image}" alt="${p.name}">
+                <div class="product-details">
+                    <h3>${p.name}</h3>
+                    <p class="price">${formatCurrency(p.price)}</p>
+                    <p style="color:#777">${p.category}</p>
+                    <div class="product-actions">
+                        <button class="btn-action btn-edit">Sửa</button>
+                        <button class="btn-action btn-delete">Xóa</button>
+                    </div>
+                </div>`;
+            grid.appendChild(div);
+        });
+    }
+
+    categoryMenu.addEventListener("click", e=>{
+        if(e.target.tagName!=="BUTTON") return;
+        document.querySelectorAll("#category-menu button").forEach(btn=>btn.classList.remove("active"));
+        e.target.classList.add("active");
+        currentFilter = e.target.dataset.cat;
+        renderProducts();
+    });
+
+    addForm.addEventListener("submit", function(e){
+        e.preventDefault();
+        const name = document.getElementById("add-name").value;
+        const price = parseFloat(document.getElementById("add-price").value);
+        const category = document.getElementById("add-category").value;
+        const file = document.getElementById("add-image").files[0];
+        if(!file){ alert("Vui lòng chọn ảnh"); return; }
+
+        const reader = new FileReader();
+        reader.onload = function(evt){
+            const newProduct = {
+                id: Date.now(),
+                name, price, category,
+                image: evt.target.result
+            };
+            products.unshift(newProduct);
+            saveToLocal();
+            renderProducts();
+            addForm.reset();
+        };
+        reader.readAsDataURL(file);
+    });
+
+    grid.addEventListener("click", e=>{
+        const item = e.target.closest(".product-item");
+        if(!item) return;
+        const id = parseInt(item.dataset.id);
+        if(e.target.classList.contains("btn-edit")) openEditModal(id);
+        if(e.target.classList.contains("btn-delete")) deleteProduct(id);
+    });
+
+    function openEditModal(id){
+        const p = products.find(x=>x.id===id);
+        if(!p) return;
+        document.getElementById("edit-id").value = p.id;
+        document.getElementById("edit-name").value = p.name;
+        document.getElementById("edit-price").value = p.price;
+        document.getElementById("edit-category").value = p.category;
+        document.getElementById("edit-image").value = "";
+        editModal.classList.add("show");
+    }
+
+    closeModal.addEventListener("click", ()=>editModal.classList.remove("show"));
+    editModal.addEventListener("click", e=>{ if(e.target===editModal) editModal.classList.remove("show"); });
+
+    editForm.addEventListener("submit", function(e){
+        e.preventDefault();
+        const id = parseInt(document.getElementById("edit-id").value);
+        const name = document.getElementById("edit-name").value;
+        const price = parseFloat(document.getElementById("edit-price").value);
+        const category = document.getElementById("edit-category").value;
+        const file = document.getElementById("edit-image").files[0];
+        const idx = products.findIndex(x=>x.id===id);
+        if(idx===-1) return;
+
+        if(file){
+            const reader = new FileReader();
+            reader.onload = function(evt){
+                products[idx].image = evt.target.result;
+                products[idx].name = name;
+                products[idx].price = price;
+                products[idx].category = category;
+                saveToLocal(); renderProducts(); editModal.classList.remove("show");
+            };
+            reader.readAsDataURL(file);
+        } else {
+            products[idx].name = name;
+            products[idx].price = price;
+            products[idx].category = category;
+            saveToLocal(); renderProducts(); editModal.classList.remove("show");
+        }
+    });
+
+    function deleteProduct(id){
+        if(confirm("Bạn có chắc muốn xóa sản phẩm này?")){
+            products = products.filter(x=>x.id!==id);
+            saveToLocal();
+            renderProducts();
+        }
+    }
+
+    clearAllBtn.addEventListener("click", ()=>{
+        if(confirm("⚠️ Xóa toàn bộ sản phẩm trong kho?")){
+            localStorage.removeItem(LS_KEY);
+            products = [];
+            renderProducts();
+        }
+    });
+
+    renderProducts();
+});
+</script>
+</body>
+</html>

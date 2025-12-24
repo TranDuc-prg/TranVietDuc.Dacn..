@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Quản Trị Cloud | Thủ Công Việt</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-auth-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root { 
+            --primary: #A34927; 
+            --secondary: #2c3e50; 
+            --bg: #f4f7f6; 
+            --white: #ffffff; 
+            --success: #27ae60; 
+            --danger: #e74c3c; 
+            --info: #3498db; 
+            --warning: #f1c40f; 
+            --text: #333; 
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); display: flex; min-height: 100vh; color: var(--text); overflow-x: hidden; }
+        
+        /* --- Login UI --- */
+        #login-overlay { position: fixed; inset: 0; background: var(--secondary); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .login-card { background: white; padding: 40px; border-radius: 15px; width: 380px; text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.3); }
+        .login-card input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; outline: none; transition: 0.3s; }
+        .login-card input:focus { border-color: var(--primary); box-shadow: 0 0 5px rgba(163, 73, 39, 0.2); }
+        .btn-login { background: var(--primary); color: white; border: none; width: 100%; padding: 14px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px; transition: 0.3s; }
+        .btn-login:hover { background: #8e3e21; transform: translateY(-2px); }
+
+        /* --- Sidebar UI --- */
+        .sidebar { width: 260px; background: var(--secondary); color: white; position: fixed; height: 100vh; z-index: 10; display: flex; flex-direction: column; box-shadow: 4px 0 10px rgba(0,0,0,0.1); }
+        .sidebar-header { padding: 30px 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .menu-scroll { flex: 1; overflow-y: auto; padding-top: 15px; }
+        .menu-item { padding: 14px 25px; cursor: pointer; display: flex; align-items: center; gap: 15px; transition: 0.3s; color: #bdc3c7; font-size: 14px; border-left: 4px solid transparent; }
+        .menu-item i { width: 20px; text-align: center; font-size: 16px; }
+        .menu-item:hover, .menu-item.active { background: rgba(255,255,255,0.05); color: white; border-left-color: var(--primary); }
+        
+        /* --- Main Content UI --- */
+        .main-content { margin-left: 260px; flex: 1; padding: 30px; width: calc(100% - 260px); transition: 0.3s; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        
+        /* --- Stats Grid --- */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { padding: 20px; border-radius: 12px; color: white; position: relative; overflow: hidden; }
+        .stat-card h4 { font-size: 13px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-card p { font-size: 26px; font-weight: 700; margin-top: 10px; }
+        .stat-card i { position: absolute; right: -10px; bottom: -10px; font-size: 60px; opacity: 0.15; transform: rotate(-15deg); }
+        .bg-staff { background: #2980b9 !important; color: white; } /* Màu xanh cho nhân viên */
+        .bg-customer { background: #95a5a6 !important; color: white; } /* Màu xám cho khách hàng */
+        /* --- Tables & UI Components --- */
+        .table-responsive { overflow-x: auto; border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; min-width: 800px; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #edf2f7; }
+        th { background: #f8fafc; font-weight: 600; color: #718096; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+        tr:hover { background-color: #fcfcfc; }
+        
+        .status-pill { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; color: white; display: inline-block; }
+        .btn-check { background: var(--success); color: white; border: none; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; transition: 0.2s; }
+        .btn-check:hover { background: #219150; }
+        .btn-delete { color: var(--danger); cursor: pointer; padding: 8px; transition: 0.2s; border-radius: 50%; }
+        .btn-delete:hover { background: rgba(231, 76, 60, 0.1); }
+
+        .admin-form { background: #fff; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #e2e8f0; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .admin-form input, .admin-form select { padding: 11px 15px; border: 1px solid #cbd5e0; border-radius: 8px; flex: 1; min-width: 180px; font-size: 14px; }
+        
+        .artisan-img { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .achievement-tag { background: #ebf8ff; color: #2b6cb0; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; border: 1px solid #bee3f8; }
+        
+        #admin-panel { display: none; width: 100%; }
+
+        @media (max-width: 1024px) {
+            .sidebar { width: 70px; }
+            .sidebar-header h3, .sidebar-header small, .menu-item span { display: none; }
+            .main-content { margin-left: 70px; width: calc(100% - 70px); padding: 15px; }
+            .menu-item { padding: 15px; justify-content: center; }
+        }
+        /* Style cho thông báo Toast */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.toast {
+    background: white;
+    padding: 15px 25px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border-left: 5px solid #27ae60; /* Màu xanh lá cho thành công */
+    animation: slideIn 0.3s ease-out;
+    transition: opacity 0.5s;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+    </style>
+</head>
+<body>
+
+    <div id="login-overlay">
+        <div class="login-card">
+            <i class="fas fa-shield-alt fa-4x" style="color: var(--primary); margin-bottom: 20px;"></i>
+            <h2 style="color: var(--secondary); letter-spacing: 1px;">QUẢN TRỊ VIÊN</h2>
+            <p style="font-size: 13px; color: #a0aec0; margin-bottom: 25px;">Hệ thống quản trị viên Thủ Công Việt </p>
+            <input type="text" id="user" placeholder="Tên đăng nhập">
+            <input type="password" id="pass" placeholder="Mật khẩu">
+            <button class="btn-login" onclick="handleLogin()">XÁC THỰC HỆ THỐNG</button>
+            <p style="margin-top: 25px;"><a href="index.html" style="color: var(--info); font-size: 13px; text-decoration: none; font-weight: 600;"><i class="fas fa-arrow-left"></i> Quay lại trang chủ</a></p>
+        </div>
+    </div>
+
+    <div id="admin-panel">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h3 style="letter-spacing: 1px; font-size: 18px;">THỦ CÔNG VIỆT</h3>
+                <small style="color: #94a3b8; font-size: 11px;">Hệ quản trị 2025</small>
+            </div>
+            <div class="menu-scroll">
+    <div class="menu-item active" onclick="switchTab('dashboard', this)"><i class="fas fa-chart-line"></i> <span>Tổng quan</span></div>
+    <div class="menu-item" onclick="switchTab('orders', this)"><i class="fas fa-shopping-cart"></i> <span>Đơn hàng</span></div>
+    <div class="menu-item" onclick="switchTab('inventory', this)"><i class="fas fa-boxes"></i> <span>Kho hàng</span></div>
+    <div class="menu-item" onclick="switchTab('customers', this)"><i class="fas fa-user-friends"></i> <span>Khách hàng</span></div>
+    <div class="menu-item" onclick="switchTab('artisans', this)"><i class="fas fa-palette"></i> <span>Nghệ nhân</span></div>
+    <div class="menu-item" onclick="switchTab('suppliers', this)"><i class="fas fa-truck-loading"></i> <span>Nhà cung cấp</span></div>
+    <div class="menu-item" onclick="switchTab('promotions', this)"><i class="fas fa-tags"></i> <span>Khuyến mãi</span></div>
+    <div class="menu-item" onclick="switchTab('staff', this)"><i class="fas fa-user-shield"></i> <span>Nhân sự</span></div>
+    
+    <a href="index.html" target="_blank" class="menu-item" style="text-decoration: none; margin-top: 10px; color: #bdc3c7;">
+        <i class="fas fa-external-link-alt"></i> <span>Xem Website</span>
+    </a>
+
+    <div class="menu-item" onclick="logout()" style="color: var(--danger); margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05);">
+        <i class="fas fa-sign-out-alt"></i> <span>Đăng xuất</span>
+    </div>
+</div>
+        </aside>
+
+        <main class="main-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                <h2 id="tab-title" style="color: var(--secondary); font-weight: 700;">Dashboard</h2>
+                <div style="background: white; padding: 8px 15px; border-radius: 8px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                    <i class="far fa-calendar-alt"></i> <span id="current-date"></span>
+                </div>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card" style="background: linear-gradient(135deg, #3498db, #2980b9)">
+                    <h4>Đơn hàng</h4><p id="stat-orders">0</p><i class="fas fa-shopping-bag"></i>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #27ae60, #1e8449)">
+                    <h4>Doanh thu</h4><p id="stat-revenue">0₫</p><i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #e74c3c, #c0392b)">
+                    <h4>Tồn kho thấp</h4><p id="stat-lowstock">0</p><i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-card" style="background: linear-gradient(135deg, #2c3e50, #1a252f)">
+                    <h4>Nhân sự</h4><p id="stat-staff">0</p><i class="fas fa-users"></i>
+                </div>
+            </div>
+
+            <div class="card">
+                <div id="main-display" class="table-responsive">
+                    </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+/**
+ * --- CẤU HÌNH & KHỞI TẠO ---
+ */
+const firebaseConfig = {
+    apiKey: "AIzaSyBV4hjn3oiT9TEUzldKOloJ-W2nmNTcuRo", 
+    authDomain: "thucongviet-system.firebaseapp.com",
+    databaseURL: "https://thucongviet-system-default-rtdb.firebaseio.com",
+    projectId: "thucongviet-system",
+    storageBucket: "thucongviet-system.firebasestorage.app",
+    messagingSenderId: "107022520550",
+    appId: "1:107022520550:web:63249a3f68535241612b27"
+};
+
+// Khởi tạo app chính (Dùng cho Admin và định danh chung)
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth(); // Auth chính cho đăng nhập
+
+// Khởi tạo app phụ để tạo nhân viên (Tránh xung đột session Admin)
+const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
+const secondaryAuth = secondaryApp.auth();
+
+let barChartInstance = null;
+document.getElementById('current-date').innerText = new Date().toLocaleDateString('vi-VN');
+
+/**
+ * --- XỬ LÝ ĐĂNG NHẬP (QUẢN LÝ & NHÂN VIÊN) ---
+ */
+async function handleLogin() {
+    const u = document.getElementById('user').value.trim();
+    const p = document.getElementById('pass').value.trim();
+
+    // 1. Kiểm tra tài khoản Quản lý cứng
+    if (u === "quanly" && p === "123") {
+        sessionStorage.setItem("isAdmin", "true");
+        sessionStorage.setItem("userRole", "admin");
+        initApp();
+        return;
+    }
+
+    // 2. Kiểm tra tài khoản Nhân viên (Qua Firebase Auth)
+    try {
+        const userCredential = await auth.signInWithEmailAndPassword(u, p);
+        const user = userCredential.user;
+
+        // Kiểm tra quyền nhanvien trong database
+        db.ref('users').orderByChild('uid').equalTo(user.uid).once('value', snapshot => {
+            let isStaff = false;
+            snapshot.forEach(child => {
+                if (child.val().role === 'nhanvien') isStaff = true;
+            });
+
+            if (isStaff) {
+                sessionStorage.setItem("isLoggedIn", "true");
+                sessionStorage.setItem("userRole", "nhanvien");
+                alert("Đăng nhập Nhân viên thành công!");
+                window.location.href = "nhanvien.html"; 
+            } else {
+                alert("Tài khoản này không có quyền truy cập quản trị!");
+                auth.signOut();
+            }
+        });
+    } catch (error) {
+        alert("Thông tin đăng nhập không chính xác hoặc không tồn tại!");
+        console.error(error);
+    }
+}
+
+function initApp() {
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'flex';
+    renderDashboard();
+    syncGlobalStats();
+}
+
+/**
+ * --- ĐỒNG BỘ DỮ LIỆU REALTIME ---
+ */
+function syncGlobalStats() {
+    // Theo dõi tồn kho
+    db.ref('products').on('value', snap => {
+        let low = 0;
+        snap.forEach(c => { if(parseInt(c.val().info3) < 10) low++; });
+        document.getElementById('stat-lowstock').innerText = low;
+    });
+
+    // Theo dõi Đơn hàng & Doanh thu (SỬA TẠI ĐÂY)
+    db.ref('orders').on('value', snap => {
+        let activeOrdersCount = 0; // Tổng đơn đang xử lý (không tính đơn hủy)
+        let totalRevenue = 0;     // Doanh thu thực tế
+
+        snap.forEach(c => {
+            const o = c.val();
+            // 1. Chỉ tính doanh thu nếu trạng thái là Hoàn thành hoặc Xong
+            if(o.status === 'Hoàn thành' || o.status === 'Xong') {
+                totalRevenue += Number(o.total || o.price || 0);
+                activeOrdersCount++; 
+            } 
+            // 2. Nếu muốn đếm tổng đơn bao gồm cả đơn mới (chờ duyệt) nhưng TRỪ đơn hủy
+            else if (o.status !== 'Đã hủy' && o.status !== 'Hủy') {
+                activeOrdersCount++;
+            }
+        });
+
+        document.getElementById('stat-orders').innerText = activeOrdersCount;
+        document.getElementById('stat-revenue').innerText = totalRevenue.toLocaleString() + "₫";
+    });
+
+    // Theo dõi nhân sự
+    db.ref('users').on('value', snap => {
+        let staffCount = 0;
+        snap.forEach(c => { if(c.val().role === 'nhanvien') staffCount++; });
+        document.getElementById('stat-staff').innerText = staffCount;
+    });
+}
+/**
+ * --- ĐIỀU HƯỚNG TABS ---
+ */
+function switchTab(tab, el) {
+    document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+    el.classList.add('active');
+    
+    const tabs = {
+        'dashboard': renderDashboard,
+        'orders': renderOrders,
+        'customers': renderCustomers,
+        'suppliers': renderSuppliers,
+        'staff': renderStaff,
+        'artisans': renderArtisans,
+        'inventory': renderInventory,
+        'promotions': renderPromotions
+    };
+    if(tabs[tab]) tabs[tab]();
+}
+
+/**
+ * --- CÁC MODULE CHỨC NĂNG ---
+ */
+
+// 1. Dashboard
+function renderDashboard() {
+    document.getElementById('tab-title').innerText = "Tổng quan hệ thống";
+    document.getElementById('main-display').innerHTML = `
+        <div style="height: 350px; margin-bottom: 30px;"><canvas id="revenueChart"></canvas></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+            <div class="card" style="border: 1px solid #edf2f7; box-shadow: none; margin-bottom: 0;">
+                <h4 style="margin-bottom: 15px;"><i class="fas fa-star" style="color:var(--warning)"></i> Khuyến mãi đang chạy</h4>
+                <div id="mini-promo" style="font-size: 13px; line-height: 2.5;">Đang tải...</div>
+            </div>
+            <div class="card" style="border: 1px solid #edf2f7; box-shadow: none; margin-bottom: 0;">
+                <h4 style="margin-bottom: 15px;"><i class="fas fa-bell" style="color:var(--info)"></i> Đơn hàng mới nhất</h4>
+                <div id="mini-orders" style="font-size: 13px; line-height: 2.5;">Đang tải...</div>
+            </div>
+        </div>`;
+
+    const ctx = document.getElementById('revenueChart').getContext('2d');
+    if(barChartInstance) barChartInstance.destroy();
+    barChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+            datasets: [{ 
+                label: 'Doanh thu thực tế (VNĐ)', 
+                data: [1200000, 1900000, 1500000, 2500000, 2200000, 3500000, 4800000], 
+                borderColor: '#A34927', 
+                backgroundColor: 'rgba(163, 73, 39, 0.1)',
+                fill: true, tension: 0.4, borderWidth: 3
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    db.ref('promotions').limitToLast(5).on('value', snap => {
+        let html = "";
+        snap.forEach(c => { html += `<div>• Mã <b>${c.val().code}</b>: Giảm ${c.val().val}%</div>`; });
+        document.getElementById('mini-promo').innerHTML = html || "Không có dữ liệu.";
+    });
+
+    db.ref('orders').limitToLast(5).on('value', snap => {
+        let html = "";
+        snap.forEach(c => { html += `<div>• ${c.val().customer || 'Khách lẻ'} - <span style="color:var(--primary)">${Number(c.val().total || 0).toLocaleString()}₫</span></div>`; });
+        document.getElementById('mini-orders').innerHTML = html || "Không có dữ liệu.";
+    });
+}
+
+// 2. Nghệ nhân
+function renderArtisans() {
+    document.getElementById('tab-title').innerText = "Danh sách Nghệ nhân";
+    document.getElementById('main-display').innerHTML = `
+        <div class="admin-form">
+            <input id="arName" placeholder="Tên nghệ nhân">
+            <input id="arVill" placeholder="Làng nghề">
+            <input id="arAchievement" placeholder="Danh hiệu">
+            <input id="arImg" placeholder="Link ảnh">
+            <button class="btn-check" onclick="addArtisan()">THÊM</button>
+        </div>
+        <div id="artisan-table-div"></div>`;
+    
+    db.ref('artisans').on('value', snap => {
+        let h = "<table><tr><th>Ảnh</th><th>Họ Tên</th><th>Làng Nghề</th><th>Danh hiệu</th><th style='text-align:right'>Xóa</th></tr>";
+        snap.forEach(c => {
+            const a = c.val();
+            h += `<tr>
+                <td><img src="${a.img || 'https://via.placeholder.com/100'}" class="artisan-img"></td>
+                <td><b>${a.info1}</b></td><td>${a.info2}</td>
+                <td><span class="achievement-tag">${a.arAchievement || 'Nghệ nhân'}</span></td>
+                <td style='text-align:right'><i class="fas fa-trash-alt btn-delete" onclick="deleteItem('artisans/${c.key}')"></i></td>
+            </tr>`;
+        });
+        document.getElementById('artisan-table-div').innerHTML = h + "</table>";
+    });
+}
+function addArtisan() {
+    const n = document.getElementById('arName').value, v = document.getElementById('arVill').value, 
+          a = document.getElementById('arAchievement').value, i = document.getElementById('arImg').value;
+    if(n) db.ref('artisans').push({ info1: n, info2: v, arAchievement: a, img: i }).then(() => alert("Đã thêm!"));
+}
+
+// 3. Kho hàng
+function renderInventory() {
+    document.getElementById('tab-title').innerText = "Quản lý Tồn kho";
+    document.getElementById('main-display').innerHTML = `
+        <div class="admin-form">
+            <input id="pName" placeholder="Sản phẩm">
+            <input type="number" id="pPrice" placeholder="Giá">
+            <input type="number" id="pStock" placeholder="Số lượng">
+            <button class="btn-check" onclick="addInventory()">NHẬP KHO</button>
+        </div>
+        <div id="p-table-div"></div>`;
+    db.ref('products').on('value', snap => {
+        let h = "<table><tr><th>Sản phẩm</th><th>Đơn giá</th><th>Số lượng</th><th>Trạng thái</th><th style='text-align:right'>Xóa</th></tr>";
+        snap.forEach(c => {
+            const p = c.val();
+            const low = parseInt(p.info3) < 10;
+            h += `<tr><td><b>${p.info1}</b></td><td>${Number(p.info2).toLocaleString()}₫</td><td>${p.info3}</td>
+            <td><span class="status-pill" style="background:${low?'var(--danger)':'var(--success)'}">${low?'Sắp hết':'Sẵn có'}</span></td>
+            <td style='text-align:right'><i class="fas fa-trash-alt btn-delete" onclick="deleteItem('products/${c.key}')"></i></td></tr>`;
+        });
+        document.getElementById('p-table-div').innerHTML = h + "</table>";
+    });
+}
+function addInventory() {
+    const n = document.getElementById('pName').value, p = document.getElementById('pPrice').value, s = document.getElementById('pStock').value;
+    if(n) db.ref('products').push({info1: n, info2: p, info3: s}).then(()=>alert("Đã cập nhật!"));
+}
+
+/// 4. Đơn hàng - Cập nhật chức năng Duyệt và Hủy
+function renderOrders() {
+    document.getElementById('tab-title').innerText = "Danh sách Đơn hàng";
+    db.ref('orders').on('value', snap => {
+        let h = "<table><tr><th>Mã đơn</th><th>Khách hàng</th><th>Khuyến mãi</th><th>Tổng thanh toán</th><th>Trạng thái</th><th style='text-align:right'>Hành động</th></tr>";
+        
+        snap.forEach(c => {
+            const o = c.val();
+            const isDone = (o.status === 'Hoàn thành' || o.status === 'Xong');
+            const isCancel = (o.status === 'Đã hủy');
+            
+            // Xác định màu sắc cho pill trạng thái
+            let statusColor = 'var(--warning)'; // Mặc định: Chờ
+            if (isDone) statusColor = 'var(--success)';
+            if (isCancel) statusColor = 'var(--danger)';
+
+            h += `<tr>
+                <td>#${c.key.slice(-6).toUpperCase()}</td>
+                <td><b>${o.customer || 'N/A'}</b></td>
+                <td>${o.promoCode ? `<span class="achievement-tag">-${o.discount}% (${o.promoCode})</span>` : '-'}</td>
+                <td style="color:var(--primary); font-weight:700">${Number(o.total || 0).toLocaleString()}₫</td>
+                <td><span class="status-pill" style="background:${statusColor}">${o.status || 'Chờ'}</span></td>
+                <td style='text-align:right'>
+                    ${(!isDone && !isCancel) ? `
+                        <button class="btn-check" onclick="updateStatus('${c.key}', 'Hoàn thành')">Duyệt</button>
+                        <button class="btn-check" style="background:#6c757d; margin-left:5px;" onclick="updateStatus('${c.key}', 'Đã hủy')">Hủy</button>
+                    ` : (isCancel ? '<span style="color:var(--danger); font-size:11px; font-weight:bold;">ĐÃ HỦY</span>' : '<span>✅ Xong</span>')}
+                    
+                    <i class="fas fa-trash-alt btn-delete" style="margin-left:10px" onclick="if(confirm('Xóa vĩnh viễn đơn này?')) deleteItem('orders/${c.key}')"></i>
+                </td>
+            </tr>`;
+        });
+        document.getElementById('main-display').innerHTML = h + "</table>";
+    });
+}
+
+window.updateStatus = function(id, newStatus) {
+    db.ref('orders/' + id).update({ 
+        status: newStatus 
+    })
+    .then(() => {
+        showToast("Đã duyệt đơn hàng thành công!");
+        // Nếu muốn duyệt đơn cũng kêu thì thêm: playOrderSound();
+    })
+    .catch(err => alert("Lỗi: " + err.message));
+};
+
+// 5. Nhân sự (CẬP NHẬT DÙNG AUTHEN)
+function renderStaff() {
+    document.getElementById('tab-title').innerText = "Nhân sự & Tài khoản Hệ thống";
+    document.getElementById('main-display').innerHTML = `
+        <div class="admin-form">
+            <input id="stName" placeholder="Tên nhân viên">
+            <input id="stEmail" placeholder="Email nhân viên">
+            <input type="password" id="stPass" placeholder="Mật khẩu (>= 6 ký tự)">
+            <button class="btn-check" onclick="addStaffAuth()">ĐĂNG KÝ HỆ THỐNG</button>
+        </div>
+        <div id="staff-table-div" class="table-responsive"></div>`;
+
+    db.ref('users').on('value', snap => {
+        let h = `<table>
+            <thead>
+                <tr>
+                    <th>Họ và Tên</th>
+                    <th>Email</th>
+                    <th>Mật khẩu</th> <th>Ghi chú</th>
+                    <th style='text-align:right'>Xóa</th>
+                </tr>
+            </thead><tbody>`;
+        
+        snap.forEach(c => { 
+            const s = c.val(); 
+            // SỬA LỖI UNDEFINED: Kiểm tra cả name và hoTen
+            const displayName = s.name || s.hoTen || "Chưa cập nhật";
+            const isStaff = s.role === 'nhanvien';
+            
+            h += `<tr>
+                <td><b>${displayName}</b></td>
+                <td><code>${s.email}</code></td>
+                <td><b style="color:#e74c3c">${s.password || '********'}</b></td>
+                <td>
+                    <span class="status-pill" style="background:${isStaff ? '#2980b9' : '#95a5a6'}">
+                        ${isStaff ? 'NHÂN VIÊN' : 'KHÁCH HÀNG'}
+                    </span>
+                </td>
+                <td style='text-align:right'>
+                    <i class="fas fa-trash-alt btn-delete" onclick="deleteItem('users/${c.key}')"></i>
+                </td>
+            </tr>`; 
+        });
+        document.getElementById('staff-table-div').innerHTML = h + "</tbody></table>";
+    });
+}
+async function addStaffAuth() {
+    const n = document.getElementById('stName').value;
+    const e = document.getElementById('stEmail').value;
+    const p = document.getElementById('stPass').value;
+
+    if(!n || !e || p.length < 6) {
+        alert("Vui lòng điền đủ tên, email và mật khẩu >= 6 ký tự!");
+        return;
+    }
+
+    try {
+        const userCredential = await secondaryAuth.createUserWithEmailAndPassword(e, p);
+        const user = userCredential.user;
+
+        // LƯU ĐẦY ĐỦ THÔNG TIN VÀO DATABASE
+        await db.ref('users').child(user.uid).set({
+            uid: user.uid,
+            name: n,
+            email: e,
+            password: p, // Dòng này cực kỳ quan trọng để hiện mật khẩu
+            role: 'nhanvien',
+            createdAt: new Date().toISOString()
+        });
+
+        await secondaryAuth.signOut();
+        showToast("Đã tạo nhân viên thành công!");
+        
+        // Reset form
+        document.getElementById('stName').value = "";
+        document.getElementById('stEmail').value = "";
+        document.getElementById('stPass').value = "";
+
+    } catch (error) {
+        alert("Lỗi: " + error.message);
+    }
+}
+// 6. Khách hàng - Giao diện nâng cao
+function renderCustomers() {
+    document.getElementById('tab-title').innerText = "Danh sách Khách hàng Đăng ký";
+    
+    // Khởi tạo khung bảng trước để tránh bị vỡ giao diện khi load
+    let tableHeader = `
+        <div class="table-responsive">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Khách hàng</th>
+                        <th>Liên hệ</th>
+                        <th>Trạng thái & Thời gian</th>
+                        <th style="text-align:right">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="customer-list-body">
+                    <tr><td colspan="4" style="text-align:center">Đang tải dữ liệu...</td></tr>
+                </tbody>
+            </table>
+        </div>`;
+    
+    document.getElementById('main-display').innerHTML = tableHeader;
+
+    // Lắng nghe dữ liệu từ Firebase
+    db.ref('khach_hang').on('value', s => {
+        let h = "";
+        s.forEach(c => {
+            const d = c.val();
+            const status = d.trangThaiCall || 'Chưa gọi';
+            const statusClass = status === 'Đã gọi' ? 'bg-done' : 'bg-new'; // Dùng class có sẵn của bạn
+            const rawPhone = (d.soDienThoai || "").replace(/\s+/g, '');
+            
+            // Tạo avatar chữ cái đầu (VD: Nguyễn Văn A -> N)
+            const firstLetter = d.hoTen ? d.hoTen.charAt(0).toUpperCase() : '?';
+
+            h += `
+                <tr>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div style="width:35px; height:35px; border-radius:50%; background:var(--primary); color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:14px;">
+                                ${firstLetter}
+                            </div>
+                            <div>
+                                <div style="font-weight:700; color:var(--primary);">${d.hoTen || "N/A"}</div>
+                                <small style="color:#777;">Khách hàng mới</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <a href="tel:${rawPhone}" class="phone-link" style="color:var(--info); text-decoration:none; font-weight:600;">
+                            <i class="fas fa-phone-alt" style="margin-right:5px; font-size:12px;"></i>${d.soDienThoai || "N/A"}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge ${statusClass}" style="margin-bottom:4px;">${status}</span><br>
+                        <small style="color:#aaa;"><i class="far fa-clock"></i> ${d.ngayDangKy || "-"}</small>
+                    </td>
+                    <td style="text-align:right;">
+                        <div style="display:flex; justify-content:flex-end; gap:8px;">
+                            <button class="btn btn-sm ${status === 'Đã gọi' ? 'btn-outline' : 'btn-primary'}" 
+                                    title="${status === 'Đã gọi' ? 'Đánh dấu chưa gọi' : 'Xác nhận đã gọi'}"
+                                    onclick="updateCallStatus('${c.key}', '${status === 'Đã gọi' ? 'Chưa gọi' : 'Đã gọi'}')">
+                                <i class="fas ${status === 'Đã gọi' ? 'fa-undo' : 'fa-check'}"></i> 
+                                ${status === 'Đã gọi' ? '' : 'Xong'}
+                            </button>
+                            <button class="btn btn-sm btn-danger" title="Xóa khách hàng"
+                                    onclick="if(confirm('Bạn có chắc muốn xóa khách hàng này?')) db.ref('khach_hang/${c.key}').remove()">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+        
+        const body = document.getElementById('customer-list-body');
+        if (body) {
+            body.innerHTML = h || "<tr><td colspan='4' style='text-align:center;'>Chưa có khách hàng đăng ký nào.</td></tr>";
+        }
+    });
+}
+window.showToast = function(message, icon = 'fa-check-circle') {
+    // 1. Khởi tạo âm thanh thông báo (Tiếng Ting ngắn)
+    const sound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    sound.volume = 0.5; // Chỉnh âm lượng 50%
+    sound.play().catch(err => console.log("Chặn tự động phát âm thanh:", err));
+
+    // 2. Xử lý hiển thị Toast
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `
+        <i class="fas ${icon}" style="color: #27ae60; font-size: 20px;"></i>
+        <div>
+            <strong style="display:block">Hệ thống</strong>
+            <small>${message}</small>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Tự động xóa sau 3 giây
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 500);
+    }, 3000);
+};
+
+// B. Hàm cập nhật trạng thái và gọi thông báo
+window.updateCallStatus = function(id, newStatus) {
+    db.ref('khach_hang/' + id).update({ 
+        trangThaiCall: newStatus 
+    })
+    .then(() => {
+        // Gọi thông báo khi Firebase cập nhật xong
+        const msg = newStatus === 'Đã gọi' ? "Đã xác nhận tư vấn xong!" : "Đã chuyển về trạng thái chờ.";
+        showToast(msg);
+    })
+    .catch((error) => {
+        console.error("Lỗi:", error);
+        alert("Có lỗi xảy ra, vui lòng thử lại.");
+    });
+};
+// 7. Nhà cung cấp
+function renderSuppliers() {
+    document.getElementById('tab-title').innerText = "Đối tác Cung cấp";
+    document.getElementById('main-display').innerHTML = `
+        <div class="admin-form">
+            <input id="sN" placeholder="Tên đối tác">
+            <input id="sP" placeholder="SĐT liên hệ">
+            <button class="btn-check" onclick="addSup()">LƯU ĐỐI TÁC</button>
+        </div><div id="s-table-div"></div>`;
+    db.ref('suppliers').on('value', snap => {
+        let h = "<table><tr><th>Tên đối tác</th><th>Số điện thoại</th><th style='text-align:right'>Xóa</th></tr>";
+        snap.forEach(c => { 
+            h += `<tr><td><b>${c.val().name}</b></td><td>${c.val().phone}</td><td style='text-align:right'><i class="fas fa-trash-alt btn-delete" onclick="deleteItem('suppliers/${c.key}')"></i></td></tr>`; 
+        });
+        document.getElementById('s-table-div').innerHTML = h + "</table>";
+    });
+}
+function addSup() {
+    const n = document.getElementById('sN').value, p = document.getElementById('sP').value;
+    if(n) db.ref('suppliers').push({name: n, phone: p}).then(()=>alert("Đã lưu!"));
+}
+
+// 8. Khuyến mãi
+function renderPromotions() {
+    document.getElementById('tab-title').innerText = "Chiến dịch Khuyến mãi";
+    document.getElementById('main-display').innerHTML = `
+        <div class="admin-form">
+            <input id="pmC" placeholder="Mã KM (VD: TET2025)">
+            <input type="number" id="pmV" placeholder="% Giảm">
+            <button class="btn-check" onclick="addPm()">TẠO MÃ</button>
+        </div>
+        <div id="pm-table-div"></div>`;
+    db.ref('promotions').on('value', snap => {
+        let h = "<table><tr><th>Mã Code</th><th>Chiết khấu (%)</th><th style='text-align:right'>Xóa</th></tr>";
+        snap.forEach(c => { 
+            h += `<tr><td><b style="color:var(--primary)">${c.val().code}</b></td><td>${c.val().val}%</td>
+            <td style='text-align:right'><i class="fas fa-trash-alt btn-delete" onclick="deleteItem('promotions/${c.key}')"></i></td></tr>`; 
+        });
+        document.getElementById('pm-table-div').innerHTML = h + "</table>";
+    });
+}
+function addPm() {
+    const c = document.getElementById('pmC').value.toUpperCase().trim(), v = document.getElementById('pmV').value;
+    if(c && v) db.ref('promotions').push({code: c, val: v}).then(()=>alert("Đã tạo!"));
+}
+
+/**
+ * --- HÀM TIỆN ÍCH ---
+ */
+function updateStatus(k, s) { db.ref('orders/' + k).update({status: s}); }
+
+function deleteItem(path) { 
+    if(confirm("Bạn có chắc chắn muốn xóa dữ liệu này?")) {
+        db.ref(path).remove().then(() => alert("Đã xóa."));
+    }
+}
+
+function logout() { 
+    auth.signOut();
+    sessionStorage.clear(); 
+    location.reload(); 
+}
+
+window.onload = () => { 
+    if(sessionStorage.getItem("isAdmin") === "true") initApp(); 
+};
+</script>
+</body>
+</html>

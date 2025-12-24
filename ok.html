@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thủ Công Việt - Hệ Thống Thanh Toán & Bản Đồ</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root { 
+            --primary: #a67c52; --accent: #d35400; --secondary: #2c3e50; 
+            --bg: #fdfaf6; --white: #ffffff; --sidebar-width: 280px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Quicksand', sans-serif; background: var(--bg); display: flex; min-height: 100vh; }
+        
+        /* SIDEBAR CHUẨN NÉT */
+        .sidebar {
+            width: var(--sidebar-width); background: var(--white); height: 100vh; position: fixed;
+            padding: 40px 25px; box-shadow: 5px 0 25px rgba(0,0,0,0.02); z-index: 1001;
+        }
+        .sidebar-header h1 { font-family: 'Playfair Display', serif; color: var(--accent); font-size: 26px; text-align: center; margin-bottom: 40px; }
+        .cat-select { width: 100%; padding: 15px; border-radius: 12px; border: 2px solid #f1ece4; outline: none; cursor: pointer; font-weight: 600; }
+
+        /* MAIN CONTENT AREA */
+        .main-container { margin-left: var(--sidebar-width); width: calc(100% - var(--sidebar-width)); padding: 40px; }
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px; }
+        
+        /* CARD SẢN PHẨM */
+        .product-card { 
+            background: var(--white); border-radius: 20px; overflow: hidden; transition: 0.4s; 
+            cursor: pointer; position: relative; box-shadow: 0 10px 25px rgba(166, 124, 82, 0.08);
+        }
+        .product-card:hover { transform: translateY(-8px); box-shadow: 0 15px 35px rgba(166, 124, 82, 0.15); }
+        .img-box { height: 260px; overflow: hidden; }
+        .img-box img { width: 100%; height: 100%; object-fit: cover; transition: 0.6s; }
+        .product-card:hover .img-box img { transform: scale(1.1); }
+        .info-box { padding: 20px; text-align: center; }
+
+        /* MODAL FIX LỖI FLEX & MAP */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(44, 62, 80, 0.5); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
+        .modal-content { background: var(--white); width: 95%; max-width: 950px; border-radius: 30px; display: flex; overflow: hidden; max-height: 95vh; animation: zoomIn 0.3s ease; }
+        .modal-left { flex: 1.1; background: #eee; }
+        .modal-left img { width: 100%; height: 100%; object-fit: cover; }
+        .modal-right { flex: 1.4; padding: 35px; overflow-y: auto; position: relative; }
+
+        /* THIẾT KẾ BẢN ĐỒ */
+        #map { height: 220px; width: 100%; border-radius: 15px; margin: 15px 0; border: 1px solid #ddd; z-index: 10; background: #f0f0f0; }
+        .ship-badge { background: #fff4e5; border: 1px solid #ffcc80; padding: 12px; border-radius: 12px; font-size: 13px; margin-bottom: 15px; color: var(--accent); display: flex; justify-content: space-between; font-weight: 700; }
+
+        input { width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 10px; border: 1px solid #eee; outline: none; font-family: inherit; }
+        .btn-submit { width: 100%; background: var(--secondary); color: white; border: none; padding: 18px; border-radius: 15px; font-weight: 700; cursor: pointer; transition: 0.3s; }
+        .btn-submit:hover { background: var(--accent); }
+
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        @media (max-width: 1000px) { .sidebar { display: none; } .main-container { margin-left: 0; width: 100%; } .modal-content { flex-direction: column; } }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="sidebar-header" onclick="location.reload()">
+        <h1>Thủ Công Việt</h1>
+    </div>
+    <select class="cat-select" id="catSelector" onchange="filterByCategory(this.value)">
+        <option value="Tất cả">--- Danh mục ---</option>
+        <option value="Mây tre đan">🌿 Mây tre đan</option>
+        <option value="Lụa tơ tằm">🧶 Lụa tơ tằm</option>
+        <option value="Gốm sứ">🏺 Gốm sứ</option>
+    </select>
+</aside>
+
+<main class="main-container">
+    <div class="product-grid" id="productGrid"></div>
+</main>
+
+<div id="detailModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-left"><img id="dImg" src=""></div>
+        <div class="modal-right">
+            <span style="position:absolute; top:20px; right:20px; cursor:pointer; font-size:24px" onclick="closeDetail()">&times;</span>
+            <h2 id="dTitle" style="font-family:'Playfair Display'; font-size:28px; margin-bottom:10px"></h2>
+            
+            <p style="font-weight:700; font-size:11px; color:var(--primary); letter-spacing:1px; margin-bottom:5px">BƯỚC 1: CHỌN VỊ TRÍ GIAO HÀNG TRÊN BẢN ĐỒ</p>
+            <div id="map"></div> <div id="shipInfo" class="ship-badge" style="display:none">
+                <span><i class="fas fa-truck"></i> Phí giao hàng:</span>
+                <span id="sFee">0₫</span>
+            </div>
+
+            <p style="font-weight:700; font-size:11px; color:var(--primary); letter-spacing:1px; margin-bottom:5px">BƯỚC 2: THÔNG TIN NGƯỜI NHẬN</p>
+            <input type="text" id="cName" placeholder="Họ và tên khách hàng">
+            <input type="text" id="cPhone" placeholder="Số điện thoại liên hệ">
+            
+            <div id="qr-area" style="text-align:center; display:none; margin-bottom:20px">
+                <img id="qrImg" src="" style="width:160px; border:1px dashed var(--accent); padding:10px; border-radius:15px">
+                <p style="font-size:10px; color:var(--accent); margin-top:5px">Quét mã VietQR để thanh toán (Đã cộng ship)</p>
+            </div>
+
+            <div style="font-size:22px; font-weight:bold; margin-bottom:20px; display:flex; justify-content:space-between">
+                <span>Tổng cộng:</span> <span id="totalAll" style="color:var(--accent)">0₫</span>
+            </div>
+            
+            <button class="btn-submit" onclick="confirmOrder()">XÁC NHẬN ĐẶT HÀNG</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. CẤU HÌNH FIREBASE
+    firebase.initializeApp({ databaseURL: "https://thucongviet-system-default-rtdb.firebaseio.com" });
+    const db = firebase.database();
+    
+    let currentP = null, map = null, marker = null, shipFee = 0;
+    const shopLoc = [20.9754, 105.9126]; // Tọa độ Bát Tràng (Gia Lâm) làm kho tổng
+    const formatVND = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v);
+
+    // 2. TẢI SẢN PHẨM REAL-TIME TỪ FIREBASE
+    db.ref('products').on('value', s => {
+        const grid = document.getElementById('productGrid');
+        grid.innerHTML = "";
+        s.forEach(child => {
+            const p = child.val();
+            grid.innerHTML += `
+                <div class="product-card" onclick='openDetail(${JSON.stringify(p)})'>
+                    <div class="img-box"><img src="${p.img}"></div>
+                    <div class="info-box">
+                        <h3 style="font-size:17px; margin-bottom:8px">${p.info1}</h3>
+                        <b style="color:var(--accent); font-size:18px">${formatVND(p.info2)}</b>
+                    </div>
+                </div>`;
+        });
+    });
+
+    // 3. MỞ CHI TIẾT & XỬ LÝ LỖI KHỞI TẠO MAP
+    function openDetail(p) {
+        currentP = p;
+        shipFee = 0;
+        document.getElementById('dImg').src = p.img;
+        document.getElementById('dTitle').innerText = p.info1;
+        document.getElementById('totalAll').innerText = formatVND(p.info2);
+        document.getElementById('qr-area').style.display = 'none';
+        document.getElementById('shipInfo').style.display = 'none';
+        
+        document.getElementById('detailModal').style.display = 'flex';
+        
+        // GIẢI PHÁP FIX LỖI: Chờ 400ms để hiệu ứng Modal hiện xong mới khởi tạo Map
+        setTimeout(initMap, 400);
+    }
+
+    function initMap() {
+        // Dọn dẹp map cũ hoàn toàn khỏi bộ nhớ nếu đã tồn tại
+        if (map) { 
+            map.remove(); 
+            map = null; 
+        }
+
+        try {
+            // Khởi tạo đối tượng map vào thẻ div có ID 'map'
+            map = L.map('map').setView(shopLoc, 12);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+            
+            // Marker kho hàng chính
+            L.marker(shopLoc).addTo(map).bindPopup('<b>Tổng kho Thủ Công Việt</b>').openPopup();
+
+            // Click trên bản đồ để chọn vị trí khách hàng
+            map.on('click', function(e) {
+                if (marker) map.removeLayer(marker);
+                marker = L.marker(e.latlng).addTo(map);
+                
+                // Công thức tính khoảng cách chim bay nhân đơn giá ship (5.000đ/km)
+                const dist = (Math.sqrt(Math.pow(e.latlng.lat - shopLoc[0], 2) + Math.pow(e.latlng.lng - shopLoc[1], 2)) * 111).toFixed(1);
+                shipFee = Math.max(dist * 5000, 15000); // Phí ship thấp nhất là 15k
+                
+                document.getElementById('sFee').innerText = formatVND(shipFee);
+                document.getElementById('shipInfo').style.display = 'flex';
+                
+                // Cập nhật giá tổng và mã QR thanh toán
+                updateTotal();
+            });
+
+            // Quan trọng: Ép bản đồ nhận diện lại kích thước để tránh lỗi bị xám khung hình
+            map.invalidateSize();
+        } catch (e) {
+            console.error("Leaflet Error: ", e);
+        }
+    }
+
+    function updateTotal() {
+        const finalTotal = Number(currentP.info2) + shipFee;
+        document.getElementById('totalAll').innerText = formatVND(finalTotal);
+        
+        // Hiện QR thanh toán động (VietQR API)
+        document.getElementById('qr-area').style.display = 'block';
+        document.getElementById('qrImg').src = `https://img.vietqr.io/image/vcb-123456789-compact2.png?amount=${finalTotal}&addInfo=Mua_${currentP.info1.replace(/\s/g, '_')}`;
+    }
+
+    function confirmOrder() {
+        const name = document.getElementById('cName').value;
+        const phone = document.getElementById('cPhone').value;
+        if(!name || shipFee === 0) return alert("Vui lòng nhập tên và click chọn địa chỉ giao hàng trên bản đồ!");
+        
+        db.ref('orders').push({
+            customer: name,
+            phone: phone,
+            product: currentP.info1,
+            total: Number(currentP.info2) + shipFee,
+            status: "Chờ duyệt",
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        }).then(() => {
+            alert("Đơn hàng đã được gửi thành công! Chúng tôi sẽ liên hệ bạn sớm.");
+            closeDetail();
+        });
+    }
+
+    function closeDetail() { 
+        document.getElementById('detailModal').style.display = 'none';
+        // Giải phóng bản đồ khi đóng để tiết kiệm tài nguyên
+        if (map) { map.remove(); map = null; }
+    }
+</script>
+</body>
+</html>

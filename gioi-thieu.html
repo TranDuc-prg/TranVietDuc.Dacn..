@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Tinh Hoa Nghệ Nhân | Thủ Công Việt</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Quicksand:wght@400;600&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root { --primary: #A34927; --bg: #fdfaf7; --secondary: #2c3e50; --success: #27ae60; --danger: #e74c3c; --edit: #2980b9; }
+        body { font-family: 'Quicksand', sans-serif; background: var(--bg); margin: 0; line-height: 1.8; }
+        
+        header { background: white; padding: 20px 8%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 100; }
+        header h1 { font-family: 'Playfair Display'; color: var(--primary); margin: 0; font-size: 24px; }
+        nav a { text-decoration: none; color: var(--secondary); font-weight: 600; margin-left: 25px; transition: 0.3s; cursor: pointer; }
+        nav a:hover { color: var(--primary); }
+
+        .container { padding: 60px 10%; }
+        .section-title { text-align: center; font-family: 'Playfair Display'; font-size: 40px; color: var(--secondary); margin-bottom: 50px; }
+        .history-box { background: white; padding: 40px; border-radius: 15px; margin-bottom: 60px; border-left: 5px solid var(--primary); box-shadow: 0 5px 15px rgba(0,0,0,0.02); }
+
+        /* Nghệ nhân grid */
+        .artisan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 40px; }
+        .artisan-card { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.05); text-align: center; cursor: pointer; transition: 0.3s; position: relative; }
+        .artisan-card:hover { transform: translateY(-10px); box-shadow: 0 15px 30px rgba(163, 73, 39, 0.2); }
+        .artisan-card img { width: 100%; height: 350px; object-fit: cover; }
+        .artisan-info { padding: 25px; }
+        
+        /* Admin Controls */
+        .admin-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 5px; z-index: 10; }
+        .btn-admin { border: none; border-radius: 5px; padding: 8px 12px; font-size: 12px; cursor: pointer; color: white; font-weight: bold; }
+        .btn-del { background: var(--danger); }
+        .btn-edit { background: var(--edit); }
+
+        /* Admin UI */
+        #admin-section { display: none; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); margin-bottom: 50px; border-top: 5px solid var(--primary); }
+        .admin-form { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .admin-form input, .admin-form textarea { padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; }
+        .admin-form textarea { grid-column: span 2; height: 120px; }
+        .btn-save { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; grid-column: span 2; font-size: 16px; }
+        
+        /* Upload Preview */
+        .file-upload-box { grid-column: span 2; border: 2px dashed #ddd; padding: 20px; text-align: center; border-radius: 10px; }
+        #upload-preview { max-width: 150px; margin: 10px auto; display: none; border-radius: 10px; }
+
+        /* Modal chi tiết */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(5px); }
+        .modal-content { background: white; max-width: 900px; width: 100%; border-radius: 20px; overflow: hidden; display: flex; animation: slideUp 0.4s ease; position: relative; }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-img { width: 45%; object-fit: cover; min-height: 450px; }
+        .modal-body { width: 55%; padding: 45px; position: relative; max-height: 85vh; overflow-y: auto; }
+        .close-modal { position: absolute; top: 20px; right: 20px; font-size: 24px; cursor: pointer; color: #999; }
+        .achievement { background: #fff5f0; padding: 15px 20px; border-radius: 10px; font-size: 15px; color: var(--primary); font-weight: 600; border: 1px dashed var(--primary); }
+
+        @media (max-width: 768px) { .modal-content { flex-direction: column; } .modal-img { width: 100%; height: 250px; } .modal-body { width: 100%; padding: 25px; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="index.html" style="text-decoration:none"><h1>Thủ Công Việt</h1></a>
+        <nav>
+            <a href="index.html">Trang Chủ</a>
+            <a onclick="cancelEdit(); showSection('client')">Xem Nghệ Nhân</a>
+            <a onclick="showAdmin()">Quản Lý</a>
+            <a onclick="logoutAdmin()" id="logout-btn" style="display:none; color:var(--danger)">Đăng xuất</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div id="admin-section">
+            <h2 id="admin-title" style="color: var(--secondary); margin-bottom: 20px;">Thêm Nghệ Nhân Mới</h2>
+            <div class="admin-form">
+                <input type="hidden" id="edit-id">
+                <input type="text" id="new-name" placeholder="Họ tên nghệ nhân...">
+                <input type="text" id="new-village" placeholder="Tên làng nghề...">
+                
+                <div class="file-upload-box">
+                    <label>Tải ảnh nghệ nhân từ máy tính:</label><br>
+                    <input type="file" id="file-input" accept="image/*" onchange="previewFile(this)">
+                    <img id="upload-preview" src="">
+                </div>
+
+                <input type="text" id="new-award" placeholder="Giải thưởng / Danh hiệu...">
+                <textarea id="new-text" placeholder="Viết câu chuyện chi tiết về nghệ nhân..."></textarea>
+                
+                <button class="btn-save" id="btn-save-text" onclick="saveToFirebase()">Lưu Dữ Liệu Lên Hệ Thống</button>
+                <button class="btn-save" id="btn-cancel-edit" onclick="cancelEdit()" style="display:none; background:#95a5a6;">Hủy Chỉnh Sửa</button>
+            </div>
+        </div>
+
+        <div class="history-box">
+            <h2>Gìn Giữ Hồn Cốt Việt</h2>
+            <p>Kết nối bạn với những câu chuyện về đất sét, sợi tơ và tâm hồn của những người giữ lửa nghề truyền thống.</p>
+        </div>
+
+        <h2 class="section-title">Bậc Thầy Chế Tác Thủ Công</h2>
+        <div id="artisan-list" class="artisan-grid"></div>
+    </div>
+
+    <div id="artisanModal" class="modal">
+        <div class="modal-content">
+            <i class="fas fa-times close-modal" onclick="closeModal()"></i>
+            <img id="m-img" class="modal-img" src="" alt="">
+            <div class="modal-body">
+                <h2 id="m-name"></h2>
+                <p id="m-village" style="color: #d35400; font-weight: bold; margin-bottom: 20px; font-size: 14px;"></p>
+                <div id="m-text" class="modal-text"></div>
+                <div id="m-award" class="achievement"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CẤU HÌNH FIREBASE
+        const firebaseConfig = {
+            databaseURL: "https://thucongviet-system-default-rtdb.firebaseio.com"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        let currentBase64 = ""; 
+
+        // XỬ LÝ ẢNH TẢI LÊN
+        function previewFile(input) {
+            const preview = document.getElementById('upload-preview');
+            const file = input.files[0];
+            const reader = new FileReader();
+
+            reader.onloadend = function () {
+                preview.src = reader.result;
+                preview.style.display = "block";
+                currentBase64 = reader.result; 
+            }
+
+            if (file) { reader.readAsDataURL(file); } 
+            else { preview.src = ""; preview.style.display = "none"; }
+        }
+
+        // TẢI DỮ LIỆU TỪ FIREBASE (REALTIME)
+        function loadArtisans() {
+            const container = document.getElementById('artisan-list');
+            const isAdmin = document.getElementById('admin-section').style.display === 'block';
+
+            db.ref('artisans').on('value', (snapshot) => {
+                const data = snapshot.val();
+                let html = "";
+                window.currentArtisans = []; 
+
+                if (data) {
+                    Object.keys(data).forEach(key => {
+                        const artisan = { id: key, ...data[key] };
+                        window.currentArtisans.push(artisan);
+
+                        html += `
+                        <div class="artisan-card" onclick="showArtisanDetail('${artisan.id}')">
+                            ${isAdmin ? `
+                                <div class="admin-controls">
+                                    <button class="btn-admin btn-edit" onclick="event.stopPropagation(); prepareEdit('${artisan.id}')">Sửa</button>
+                                    <button class="btn-admin btn-del" onclick="event.stopPropagation(); deleteArtisan('${artisan.id}')">Xóa</button>
+                                </div>` : ''}
+                            <img src="${artisan.img}" alt="${artisan.info1}">
+                            <div class="artisan-info">
+                                <h3>${artisan.info1}</h3>
+                                <p style="font-size: 14px; color: #888;">${artisan.info2}</p>
+                            </div>
+                        </div>`;
+                    });
+                }
+                container.innerHTML = html || "<p style='text-align:center; grid-column: 1/-1;'>Chưa có dữ liệu nghệ nhân.</p>";
+            });
+        }
+
+        // LƯU DỮ LIỆU LÊN FIREBASE
+        function saveToFirebase() {
+            const name = document.getElementById('new-name').value;
+            const village = document.getElementById('new-village').value;
+            const award = document.getElementById('new-award').value;
+            const text = document.getElementById('new-text').value;
+            const editId = document.getElementById('edit-id').value;
+
+            if(!name || !text) { alert("Vui lòng nhập tên và nội dung!"); return; }
+
+            const artisanData = {
+                info1: name,
+                info2: village,
+                award: award.startsWith("🏆") ? award : "🏆 " + award,
+                text: text,
+                img: currentBase64 || "https://via.placeholder.com/800"
+            };
+
+            if(editId) {
+                db.ref('artisans/' + editId).update(artisanData)
+                    .then(() => { alert("Cập nhật thành công!"); cancelEdit(); });
+            } else {
+                db.ref('artisans').push(artisanData)
+                    .then(() => { alert("Đã thêm nghệ nhân mới!"); cancelEdit(); });
+            }
+        }
+
+        // CHUẨN BỊ SỬA
+        function prepareEdit(id) {
+            const artisan = window.currentArtisans.find(a => a.id === id);
+            if(!artisan) return;
+
+            document.getElementById('edit-id').value = artisan.id;
+            document.getElementById('new-name').value = artisan.info1;
+            document.getElementById('new-village').value = artisan.info2;
+            document.getElementById('new-award').value = artisan.award.replace("🏆 ", "");
+            document.getElementById('new-text').value = artisan.text;
+            
+            const preview = document.getElementById('upload-preview');
+            preview.src = artisan.img;
+            preview.style.display = "block";
+            currentBase64 = artisan.img; 
+
+            document.getElementById('admin-title').innerText = "Chỉnh Sửa Bài Viết";
+            document.getElementById('btn-save-text').innerText = "Cập Nhật Bài Viết";
+            document.getElementById('btn-cancel-edit').style.display = "inline-block";
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        function cancelEdit() {
+            document.getElementById('edit-id').value = "";
+            document.querySelectorAll('.admin-form input, .admin-form textarea').forEach(el => el.value = "");
+            document.getElementById('upload-preview').style.display = "none";
+            currentBase64 = "";
+            document.getElementById('admin-title').innerText = "Thêm Nghệ Nhân Mới";
+            document.getElementById('btn-save-text').innerText = "Lưu Bài Viết & Đẩy Lên Trang Chủ";
+            document.getElementById('btn-cancel-edit').style.display = "none";
+        }
+
+        function deleteArtisan(id) {
+            if(confirm("Xác nhận xóa nghệ nhân này?")) {
+                db.ref('artisans/' + id).remove();
+            }
+        }
+
+        function showAdmin() {
+            const pass = prompt("Nhập mật khẩu quản trị :");
+            if(pass === "123") {
+                document.getElementById('admin-section').style.display = 'block';
+                document.getElementById('logout-btn').style.display = 'inline-block';
+                loadArtisans();
+            }
+        }
+
+        function logoutAdmin() {
+            document.getElementById('admin-section').style.display = 'none';
+            document.getElementById('logout-btn').style.display = 'none';
+            loadArtisans();
+        }
+
+        function showSection(type) { if(type === 'client') { document.getElementById('admin-section').style.display = 'none'; loadArtisans(); } }
+        function closeModal() { document.getElementById('artisanModal').style.display = 'none'; }
+        
+        function showArtisanDetail(id) {
+            const artisan = window.currentArtisans.find(a => a.id === id);
+            if(!artisan) return;
+            document.getElementById('m-name').innerText = artisan.info1;
+            document.getElementById('m-village').innerText = artisan.info2;
+            document.getElementById('m-img').src = artisan.img;
+            document.getElementById('m-text').innerText = artisan.text;
+            document.getElementById('m-award').innerText = artisan.award;
+            document.getElementById('artisanModal').style.display = 'flex';
+        }
+
+        document.addEventListener('DOMContentLoaded', loadArtisans);
+    </script>
+</body>
+</html>

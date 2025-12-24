@@ -1,0 +1,264 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giỏ Hàng | Thủ Công Việt</title>
+    
+    <link rel="stylesheet" href="css/style.css"> 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    </head>
+<body>
+
+    <header class="main-header">
+        <div class="container header-content">
+            <div class="logo">
+                <a href="index.html">
+                    <h1>Thủ Công Việt</h1>
+                </a>
+            </div>
+            
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="index.html">Trang Chủ</a></li>
+                    <li><a href="san-pham.html">Sản Phẩm</a></li>
+                    <li><a href="gioi-thieu.html">Giới Thiệu</a></li>
+                    <li><a href="lien-he.html">Liên Hệ</a></li>
+                </ul>
+            </nav>
+
+            <div class="auth-area">
+                <a href="login.html" id="loginLink" class="nav-icon-link">
+                    <i class="fas fa-user"></i>
+                </a>
+                
+                <a href="cart.html" id="cartLink" class="nav-icon-link cart-icon-count" style="margin-left: 10px;">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span class="cart-count">0</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container breadcrumb">
+            <a href="index.html">Trang chủ</a> / Giỏ Hàng
+        </div>
+        
+        <section class="cart-section">
+            <div class="container">
+                <h2>Giỏ Hàng Của Bạn</h2>
+
+                <div class="cart-content-wrapper">
+                    
+                    <table class="cart-table">
+                        <thead>
+                            <tr>
+                                <th>STT</th>
+                                <th>Sản phẩm</th>
+                                <th>Giá</th>
+                                <th>Số lượng</th>
+                                <th>Tổng</th>
+                                <th>Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-items-body">
+                            </tbody>
+                    </table>
+
+                    <div class="cart-summary">
+                        <h3>Tóm Tắt Đơn Hàng</h3>
+                        
+                        <div class="summary-line">
+                            <span>Tổng phụ:</span>
+                            <span id="cart-subtotal-price">0₫</span>
+                        </div>
+                        
+                        <div class="summary-line shipping-fee">
+                            <span>Phí vận chuyển:</span>
+                            <span id="shipping-fee">30.000₫</span>
+                        </div>
+
+                        <div class="summary-line total-line">
+                            <strong>Tổng cộng:</strong>
+                            <strong id="cart-total-price">0₫</strong>
+                        </div>
+                        
+                        <a href="checkout.html" class="btn btn-primary btn-checkout">
+                            Tiến hành Thanh toán <i class="fas fa-arrow-right"></i>
+                        </a>
+                        
+                        <div class="continue-shopping">
+                            <a href="chi-tiet-san-pham.html">
+                                <i class="fas fa-arrow-left"></i> Tiếp tục mua sắm
+                            </a>
+                        </div>
+                    </div>
+
+                </div> </div>
+        </section>
+
+    </main>
+
+    <footer class="main-footer">
+        </footer>
+    
+    <script>
+        // ===========================================
+        // HÀM QUẢN LÝ GIỎ HÀNG & TIỆN ÍCH
+        // ===========================================
+
+        function getCart() {
+            try {
+                const cartData = localStorage.getItem('cart');
+                return cartData ? JSON.parse(cartData) : [];
+            } catch (e) {
+                console.error("Lỗi khi đọc giỏ hàng:", e);
+                return [];
+            }
+        }
+
+        function saveCart(cart) {
+            localStorage.setItem('cart', JSON.stringify(cart));
+        }
+
+        function formatPrice(price) {
+            if (typeof price !== 'number') return '0₫';
+            return price.toLocaleString('vi-VN') + '₫';
+        }
+
+        // Cập nhật số lượng trên header
+        function updateCartCountInHeader() {
+            const cart = getCart();
+            const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+            const cartCountElement = document.querySelector('.cart-count'); 
+            if (cartCountElement) {
+                cartCountElement.textContent = totalItems;
+            }
+        }
+        
+        // **********************************
+        // HÀM CHÍNH: HIỂN THỊ GIỎ HÀNG
+        // **********************************
+        function renderCart() {
+            const cart = getCart();
+            const cartBody = document.getElementById('cart-items-body');
+            const cartSubtotalElement = document.getElementById('cart-subtotal-price');
+            const cartTotalElement = document.getElementById('cart-total-price');
+            const shippingFee = 30000; // Phí vận chuyển cố định (ví dụ)
+            const shippingFeeElement = document.getElementById('shipping-fee');
+            
+            // Xử lý không tìm thấy phần tử HTML
+            if (!cartBody || !cartSubtotalElement || !cartTotalElement || !shippingFeeElement) {
+                console.error("Thiếu phần tử HTML cần thiết.");
+                return;
+            }
+
+            cartBody.innerHTML = ''; 
+            let subtotal = 0;
+
+            if (cart.length === 0) {
+                // Trường hợp giỏ hàng trống
+                cartBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 50px;">
+                            <i class="fas fa-box-open fa-2x" style="color: #ccc; margin-bottom: 10px;"></i>
+                            <p>Giỏ hàng của bạn đang trống.</p>
+                            <a href="admin-products.html" class="btn btn-primary" style="margin-top: 15px;">Tiếp tục mua sắm</a>
+                        </td>
+                    </tr>
+                `;
+                // Đặt tổng phụ và tổng cộng về 0
+                cartSubtotalElement.textContent = formatPrice(0);
+                cartTotalElement.textContent = formatPrice(0);
+                shippingFeeElement.textContent = formatPrice(0); // Không mất phí khi giỏ hàng trống
+            } else {
+                // Trường hợp có sản phẩm
+                cart.forEach((item, index) => {
+                    const itemTotal = item.price * item.quantity;
+                    subtotal += itemTotal;
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td class="product-col">
+                            <img src="images/sp_gom_1_small.jpg" alt="${item.name}" class="cart-item-img">
+                            <span class="product-name-in-cart">${item.name}</span>
+                        </td>
+                        <td class="price">${formatPrice(item.price)}</td>
+                        <td>
+                            <input type="number" value="${item.quantity}" min="1" max="100"
+                                   data-product-id="${item.id}"
+                                   onchange="updateQuantity(this, '${item.id}')"
+                                   style="width: 60px; text-align: center;">
+                        </td>
+                        <td class="total-item-price">${formatPrice(itemTotal)}</td>
+                        <td>
+                            <button class="btn-remove" onclick="removeItem('${item.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    cartBody.appendChild(row);
+                });
+
+                // Cập nhật tổng tiền
+                const total = subtotal + shippingFee;
+                cartSubtotalElement.textContent = formatPrice(subtotal);
+                cartTotalElement.textContent = formatPrice(total);
+                shippingFeeElement.textContent = formatPrice(shippingFee);
+            }
+        }
+
+        // ===========================================
+        // HÀM XỬ LÝ TƯƠNG TÁC
+        // ===========================================
+
+        // Hàm xóa sản phẩm (được gọi từ onclick)
+        function removeItem(productId) {
+            let cart = getCart();
+            cart = cart.filter(item => item.id !== productId);
+            saveCart(cart);
+            renderCart(); 
+            updateCartCountInHeader(); 
+        }
+
+        // Hàm cập nhật số lượng (được gọi từ onchange)
+        function updateQuantity(inputElement, productId) {
+            let newQuantity = parseInt(inputElement.value);
+            
+            if (isNaN(newQuantity) || newQuantity < 1) {
+                newQuantity = 1;
+                inputElement.value = 1; 
+            }
+
+            let cart = getCart();
+            const itemIndex = cart.findIndex(item => item.id === productId);
+
+            if (itemIndex > -1) {
+                cart[itemIndex].quantity = newQuantity;
+                saveCart(cart);
+                renderCart(); 
+                updateCartCountInHeader();
+            }
+        }
+
+        // ===========================================
+        // KHỞI TẠO TRANG
+        // ===========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            renderCart();
+            updateCartCountInHeader(); 
+            
+            // Bạn có thể thêm logic Auth (đăng nhập/đăng xuất) vào đây nếu cần,
+            // hoặc nhúng file script.js chứa logic Auth của bạn.
+        });
+        
+        // Đưa các hàm tương tác ra scope global để onclick/onchange hoạt động
+        window.removeItem = removeItem;
+        window.updateQuantity = updateQuantity;
+    </script>
+    </body>
+</html>

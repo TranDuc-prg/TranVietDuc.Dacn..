@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Hệ thống Quản trị Đơn hàng - Thủ Công Việt</title>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+    <style>
+        :root { --primary: #d35400; --success: #27ae60; --danger: #e74c3c; --dark: #333; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #fcf9f5; padding: 20px; color: var(--dark); }
+        .header-title { text-align: center; color: var(--primary); font-size: 26px; font-weight: bold; margin-bottom: 25px; text-transform: uppercase; }
+        
+        /* Thống kê */
+        .stats-container { display: flex; justify-content: center; gap: 20px; margin-bottom: 30px; }
+        .stat-box { background: white; padding: 15px 40px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); text-align: center; min-width: 150px; }
+        .stat-box h3 { margin: 0; font-size: 13px; color: #777; font-weight: normal; }
+        .stat-box p { margin: 5px 0 0; font-size: 22px; font-weight: bold; }
+
+        /* Bảng dữ liệu */
+        .main-card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); max-width: 1150px; margin: 0 auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 15px; border-bottom: 2px solid #f9f9f9; color: #888; font-size: 12px; text-transform: uppercase; }
+        td { padding: 20px 15px; border-bottom: 1px solid #f9f9f9; vertical-align: top; }
+
+        .order-id { background: #eaeded; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; color: #555; }
+        .customer-name { color: var(--primary); font-weight: bold; font-size: 15px; }
+        .product-price { font-weight: bold; font-size: 18px; margin-bottom: 5px; display: block; color: var(--primary); }
+        .product-desc { font-size: 12px; color: #777; line-height: 1.4; }
+
+        /* Badge Trạng thái */
+        .badge { padding: 6px 15px; border-radius: 20px; font-size: 11px; font-weight: bold; display: inline-block; margin-bottom: 8px; }
+        .waiting { background: #fef5d9; color: #b7950b; }
+        .completed { background: #e8f8f5; color: #1e8449; }
+        .cancelled { background: #fdedec; color: #a93226; }
+
+        /* Nút bấm */
+        .btn-group { display: flex; flex-direction: column; gap: 8px; }
+        button { border: none; padding: 9px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; width: 130px; font-size: 12px; }
+        .btn-approve { background: var(--primary); color: white; }
+        .btn-cancel { background: white; color: #a93226; border: 1px solid #a93226; }
+        .cancel-reason { display: block; font-size: 11px; color: var(--danger); margin-top: 5px; font-style: italic; border-left: 2px solid var(--danger); padding-left: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="header-title">⚒ QUẢN TRỊ ĐƠN HÀNG THỦ CÔNG VIỆT</div>
+
+    <div class="stats-container">
+        <div class="stat-box"><h3>Tổng đơn hàng</h3><p id="total-count">0</p></div>
+        <div class="stat-box"><h3>Đang chờ</h3><p id="pending-count" style="color: #d35400;">0</p></div>
+        <div class="stat-box"><h3>Hoàn thành</h3><p id="done-count" style="color: #27ae60;">0</p></div>
+    </div>
+
+    <div class="main-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Mã đơn & Ngày</th>
+                    <th>Khách hàng</th>
+                    <th>Sản phẩm & Giá trị</th>
+                    <th>Trạng thái & Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="order-body">
+                <tr><td colspan="4" style="text-align: center; padding: 30px;">Đang đồng bộ dữ liệu từ Firebase...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // 1. Cấu hình Firebase
+        const config = { databaseURL: "https://thucongviet-system-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(config);
+        const db = firebase.database();
+
+        // 2. Lấy thông tin User để phân quyền
+        const user = JSON.parse(localStorage.getItem("user") || '{"role":"admin","username":"admin"}');
+        const role = user.role; 
+        const username = user.username;
+
+        // 3. Hàm định dạng tiền tệ thông minh (Hiện đúng 1.385.000₫)
+        function formatMoney(order) {
+            let amount = order.total || order.totalAmount || order.price || order.itemPrice || order.info2 || 0;
+            if (typeof amount === 'string' && (amount.includes('₫') || amount.includes('đ'))) return amount;
+            return Number(amount).toLocaleString('vi-VN') + "₫";
+        }
+
+        // 4. Tải và hiển thị đơn hàng Realtime
+        function loadOrders() {
+            db.ref('orders').on('value', (snapshot) => {
+                const tbody = document.getElementById("order-body");
+                tbody.innerHTML = "";
+                const data = snapshot.val();
+
+                if (!data) {
+                    tbody.innerHTML = "<tr><td colspan='4' style='text-align: center; padding: 30px;'>Hiện chưa có đơn hàng nào.</td></tr>";
+                    updateStatsDisplay(0, 0, 0);
+                    return;
+                }
+
+                const ordersArray = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+                
+                // Cập nhật thống kê
+                const total = ordersArray.length;
+                const pending = ordersArray.filter(o => o.status === "Đang chờ xác nhận" || o.status === "Chờ xử lý" || o.status === "Mới").length;
+                const done = ordersArray.filter(o => o.status === "Đã thanh toán" || o.status === "Hoàn thành").length;
+                updateStatsDisplay(total, pending, done);
+
+                // Lọc đơn: Admin xem tất cả, Khách xem đơn của mình
+                let displayData = (role === "admin" || role === "nhanvien") ? ordersArray : ordersArray.filter(o => o.customer === username);
+
+                displayData.reverse().forEach(o => {
+                    const tr = document.createElement("tr");
+                    const isDone = (o.status === "Đã thanh toán" || o.status === "Hoàn thành");
+                    const isCancelled = (o.status && o.status.toLowerCase().includes("hủy"));
+
+                    let actionHtml = "";
+                    if (isDone) {
+                        actionHtml = `<span class="badge completed">HOÀN THÀNH</span><br><span style="color:#27ae60; font-size:18px; padding-left:35px;">✔</span>`;
+                    } else if (isCancelled) {
+                        actionHtml = `<span class="badge cancelled">ĐÃ HỦY</span><br><span class="cancel-reason">Lý do: ${o.reason || o.cancelReason || 'N/A'}</span>`;
+                    } else {
+                        actionHtml = `<span class="badge waiting">CHỜ XỬ LÝ</span><div class="btn-group">`;
+                        if (role === "admin" || role === "nhanvien") {
+                            actionHtml += `<button class="btn-approve" onclick="verifyAndApprove('${o.id}')">DUYỆT ĐƠN</button>`;
+                        }
+                        actionHtml += `<button class="btn-cancel" onclick="handleCancel('${o.id}')">HỦY ĐƠN</button></div>`;
+                    }
+
+                    // Mô tả sản phẩm
+                    let productDetail = o.product || "Tác phẩm mỹ nghệ";
+                    if (o.items) productDetail = o.items.map(i => `${i.name} (x${i.quantity})`).join(", ");
+
+                    tr.innerHTML = `
+                        <td><span class="order-id">#${o.id.substring(0,8)}</span><br><small style="color:#999">🕒 ${o.date || o.time || ''}</small></td>
+                        <td><span class="customer-name">${o.customer || 'Khách vãng lai'}</span><br><small style="color:#888">📍 ${o.address || 'Giao tận nơi'}</small></td>
+                        <td>
+                            <span class="product-price">${formatMoney(o)}</span>
+                            <div class="product-desc">${productDetail}</div>
+                        </td>
+                        <td>${actionHtml}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+        }
+
+        // 5. Hàm Duyệt đơn với mật khẩu 123
+        function verifyAndApprove(id) {
+            const password = prompt("XÁC NHẬN QUẢN TRỊ\nVui lòng nhập mật khẩu để DUYỆT đơn hàng này:");
+            
+            if (password === null) return; // Nhấn hủy
+            
+            if (password === "123") {
+                if(confirm("Xác nhận khách đã thanh toán và duyệt đơn?")) {
+                    db.ref('orders/' + id).update({ 
+                        status: "Đã thanh toán",
+                        finishDate: new Date().toLocaleString('vi-VN'),
+                        confirmedBy: username
+                    }).then(() => alert("Đã duyệt đơn thành công!"));
+                }
+            } else {
+                alert("Mật khẩu không chính xác! Bạn không có quyền duyệt.");
+            }
+        }
+
+        // 6. Hàm Hủy đơn kèm lý do
+        function handleCancel(id) {
+            const reason = prompt("Vui lòng nhập lý do hủy đơn (Bắt buộc):");
+            if (reason === null) return;
+            if (reason.trim() === "") return alert("Bạn phải nhập lý do mới có thể hủy!");
+            
+            db.ref('orders/' + id).update({ 
+                status: "Đã hủy", 
+                reason: reason 
+            }).then(() => alert("Đã ghi nhận yêu cầu hủy đơn."));
+        }
+
+        function updateStatsDisplay(t, p, d) {
+            document.getElementById("total-count").innerText = t;
+            document.getElementById("pending-count").innerText = p;
+            document.getElementById("done-count").innerText = d;
+        }
+
+        document.addEventListener("DOMContentLoaded", loadOrders);
+    </script>
+</body>
+</html>

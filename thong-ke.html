@@ -1,0 +1,271 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thống Kê Đơn Hàng | Thủ Công Việt</title>
+    <link rel="stylesheet" href="css/style.css"> 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        .stats-container {
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 30px;
+            background: #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 30px;
+        }
+        .chart-box {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .summary-table th, .summary-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .summary-table th {
+            background-color: #A34927;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <div class="container" style="padding: 15px 0; text-align: center; border-bottom: 1px solid #eee;">
+            <a href="index.html"><h1>Thủ Công Việt - Báo Cáo Thống Kê</h1></a>
+        </div>
+    </header>
+
+    <main>
+        <div class="stats-container">
+            <h2>Thống Kê Tình Trạng Thanh Toán Đơn Hàng</h2>
+            
+            <div class="stats-grid">
+                <div class="chart-box">
+                    <h3>Biểu đồ Tình trạng Thanh toán</h3>
+                    <canvas id="paymentStatusChart"></canvas>
+                </div>
+
+                <div class="chart-box">
+                    <h3>Biểu đồ Phương thức Thanh toán (Đã TT)</h3>
+                    <canvas id="paymentMethodChart"></canvas>
+                </div>
+            </div>
+
+            <h3>Chi tiết Thống kê</h3>
+            <table class="summary-table" id="statsTable">
+                <thead>
+                    <tr>
+                        <th>Tình trạng</th>
+                        <th>Tổng số đơn</th>
+                        <th>Tổng tiền (VND)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </main>
+
+   <script>
+    // Kiểm tra đăng nhập đơn giản cho trang quản lý
+    const isLoggedIn = localStorage.getItem("isLoggedIn");
+    if (!isLoggedIn) {
+         alert("Vui lòng đăng nhập để xem trang thống kê.");
+         window.location.href = "login.html";
+    }
+
+    function formatCurrency(amount) {
+        // Đảm bảo amount là số và định dạng tiền tệ Việt Nam
+        const number = parseFloat(amount) || 0;
+        return number.toLocaleString('vi-VN');
+    }
+
+    function analyzeOrders() {
+        const orders = JSON.parse(localStorage.getItem('orders') || '[]');
+        
+        let stats = {
+            totalOrders: orders.length,
+            totalAmount: 0,
+            paid: { count: 0, amount: 0, methods: {} },
+            unpaid: { count: 0, amount: 0, methods: {} }
+        };
+
+        const allMethods = ['cod', 'bank', 'momo'];
+
+        // Khởi tạo methods
+        allMethods.forEach(method => {
+            stats.paid.methods[method] = 0;
+            stats.unpaid.methods[method] = 0;
+        });
+        
+        orders.forEach(order => {
+            const total = order.totalAmount || 0;
+            const paymentMethodStr = (order.paymentMethod || 'cod').toLowerCase();
+            
+            // Logic phân loại phương thức thanh toán
+            let methodKey = 'other';
+            if (paymentMethodStr.includes('cod')) {
+                methodKey = 'cod';
+            } else if (paymentMethodStr.includes('bank') || paymentMethodStr.includes('vietqr')) {
+                methodKey = 'bank';
+            } else if (paymentMethodStr.includes('momo')) {
+                methodKey = 'momo';
+            }
+
+            stats.totalAmount += total;
+
+            if (order.isPaid) {
+                stats.paid.count++;
+                stats.paid.amount += total;
+                if (stats.paid.methods[methodKey] !== undefined) {
+                    stats.paid.methods[methodKey]++;
+                }
+            } else {
+                stats.unpaid.count++;
+                stats.unpaid.amount += total;
+                if (stats.unpaid.methods[methodKey] !== undefined) {
+                    // Đơn COD (chưa TT) và các đơn chưa TT khác sẽ được thống kê tại đây
+                    stats.unpaid.methods[methodKey]++; 
+                }
+            }
+        });
+
+        return stats;
+    }
+
+    function renderCharts() {
+        const stats = analyzeOrders();
+        const tableBody = document.getElementById('statsTable').querySelector('tbody');
+        tableBody.innerHTML = '';
+        
+        // Hủy biểu đồ cũ nếu cần để vẽ lại (quan trọng khi load lại trang)
+        if (window.paidUnpaidChart instanceof Chart) {
+            window.paidUnpaidChart.destroy();
+        }
+        if (window.paymentMethodChart instanceof Chart) {
+            window.paymentMethodChart.destroy();
+        }
+
+        // --- 1. Biểu đồ Tình trạng Thanh toán (Doughnut Chart) ---
+        const paidUnpaidCtx = document.getElementById('paymentStatusChart').getContext('2d');
+        window.paidUnpaidChart = new Chart(paidUnpaidCtx, {
+            type: 'doughnut',
+            data: {
+                labels: [
+                    `Đã Thanh Toán (${stats.paid.count})`, 
+                    `Chưa Thanh Toán (${stats.unpaid.count})`
+                ],
+                datasets: [{
+                    label: 'Số lượng đơn hàng',
+                    data: [stats.paid.count, stats.unpaid.count],
+                    backgroundColor: [
+                        '#4CAF50', // Màu xanh cho Đã TT
+                        '#FF9800'  // Màu cam cho Chưa TT
+                    ],
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    title: { display: true, text: 'Tỷ lệ Đã Thanh Toán vs Chưa Thanh Toán (Tổng)' }
+                }
+            }
+        });
+
+        // --- 2. Biểu đồ CỘT: Thống kê Phương thức Thanh toán (Bao gồm cả Đã TT và Chưa TT) ---
+        const methodCtx = document.getElementById('paymentMethodChart').getContext('2d');
+        window.paymentMethodChart = new Chart(methodCtx, {
+            type: 'bar', // ĐÃ CHUYỂN SANG BIỂU ĐỒ CỘT
+            data: {
+                labels: ['COD (Thanh toán khi nhận hàng)', 'Chuyển khoản Ngân hàng/QR', 'Ví MoMo'],
+                datasets: [
+                    {
+                        label: 'Đơn Đã Thanh Toán',
+                        data: [
+                            stats.paid.methods.cod, 
+                            stats.paid.methods.bank, 
+                            stats.paid.methods.momo
+                        ],
+                        backgroundColor: '#4CAF50', // Màu xanh lá
+                    },
+                    {
+                        label: 'Đơn Chưa Thanh Toán',
+                        data: [
+                            stats.unpaid.methods.cod, // Lấy DỮ LIỆU ĐƠN COD CHƯA TT
+                            stats.unpaid.methods.bank, 
+                            stats.unpaid.methods.momo
+                        ],
+                        backgroundColor: '#FF9800', // Màu cam
+                    }
+                ]
+            },
+             options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'top' },
+                    // Cập nhật tiêu đề để phản ánh nội dung mới
+                    title: { display: true, text: 'Số lượng Đơn hàng theo Phương thức & Trạng thái Thanh toán' } 
+                },
+                scales: {
+                    x: {
+                        stacked: false, // Các cột Đã TT/Chưa TT nằm CẠNH NHAU
+                        title: { display: true, text: 'Phương thức Thanh toán' }
+                    },
+                    y: {
+                        stacked: false, 
+                        beginAtZero: true,
+                        title: { display: true, text: 'Số lượng Đơn hàng' }
+                    }
+                }
+            }
+        });
+        
+        // Cập nhật tiêu đề hiển thị trong HTML cho rõ ràng hơn
+        document.querySelector('.stats-grid .chart-box:nth-child(2) h3').textContent = 'Biểu đồ Phương thức Thanh toán (Tất cả)';
+
+
+        // --- 3. Bảng Chi tiết ---
+        const totalRow = `
+            <tr>
+                <td style="font-weight: bold;">ĐÃ THANH TOÁN</td>
+                <td>${stats.paid.count}</td>
+                <td>${formatCurrency(stats.paid.amount)}₫</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold; color: #A34927;">CHƯA THANH TOÁN</td>
+                <td>${stats.unpaid.count}</td>
+                <td>${formatCurrency(stats.unpaid.amount)}₫</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold; background-color: #f0f0f0;">TỔNG CỘNG TẤT CẢ</td>
+                <td style="font-weight: bold; background-color: #f0f0f0;">${stats.totalOrders}</td>
+                <td style="font-weight: bold; background-color: #f0f0f0;">${formatCurrency(stats.totalAmount)}₫</td>
+            </tr>
+        `;
+        tableBody.insertAdjacentHTML('beforeend', totalRow);
+    }
+
+    document.addEventListener('DOMContentLoaded', renderCharts);
+</script>
+</body>
+</html>

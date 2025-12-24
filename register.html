@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Ký Tài Khoản Phân Quyền | Thủ Công Việt</title>
+    <link rel="stylesheet" href="css/style.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <style>
+        .auth-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #FAF9F6; }
+        .auth-form { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); width: 100%; max-width: 450px; }
+        .auth-form h2 { text-align: center; color: #4b784e; margin-bottom: 25px; font-size: 28px; }
+        .auth-form label { display: block; margin-top: 15px; font-weight: 600; color: #333; }
+        .auth-form input, .auth-form select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; outline: none; }
+        .auth-form select { background-color: #f9f9f9; cursor: pointer; border: 2px solid #4b784e; }
+        .btn-cta { width: 100%; margin-top: 30px; padding: 12px; background: #4b784e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .switch-link { text-align: center; margin-top: 20px; font-size: 15px; }
+        #error-msg { color: #e74c3c; font-size: 14px; text-align: center; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="auth-container">
+        <div class="auth-form">
+            <h2>Tạo Tài Khoản Mới</h2>
+            
+            <label for="reg-name">Họ và Tên (*)</label>
+            <input type="text" id="reg-name" required placeholder="Nhập họ tên đầy đủ">
+
+            <label for="reg-email">Email / Tên đăng nhập (*)</label>
+            <input type="text" id="reg-user" required placeholder="Sử dụng để đăng nhập">
+            
+            <label for="reg-role">Loại tài khoản (*)</label>
+            <select id="reg-role">
+                <option value="user">Khách Hàng (Mặc định)</option>
+                <option value="nhanvien">Nhân Viên Hệ Thống</option>
+                <option value="quanly">Quản Lý / Quản Trị Viên</option>
+            </select>
+
+            <label for="reg-password">Mật khẩu (*)</label>
+            <input type="password" id="reg-pass" required minlength="6">
+            
+            <label for="reg-confirm">Xác nhận Mật khẩu (*)</label>
+            <input type="password" id="reg-confirm" required minlength="6">
+            
+            <div id="error-msg"></div>
+
+            <button type="button" class="btn-cta" onclick="handleRegister()">
+                Đăng Ký Ngay
+            </button>
+
+            <p class="switch-link">Đã có tài khoản? <a href="login.html">Đăng nhập ngay</a></p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db } from './js/db.config.js';
+
+        window.handleRegister = function() {
+            const user = document.getElementById('reg-user').value.trim();
+            const name = document.getElementById('reg-name').value.trim();
+            const pass = document.getElementById('reg-pass').value;
+            const confirm = document.getElementById('reg-confirm').value;
+            const role = document.getElementById('reg-role').value;
+            const errorDiv = document.getElementById('error-msg');
+
+            // Kiểm tra dữ liệu đầu vào
+            if(!user || !name || !pass) {
+                showError("Vui lòng điền đầy đủ các thông tin có dấu (*)");
+                return;
+            }
+            if(pass !== confirm) {
+                showError("Mật khẩu xác nhận không khớp!");
+                return;
+            }
+
+            // Kiểm tra xem tài khoản đã tồn tại chưa
+            db.ref('registeredUsers/' + user).once('value').then((snapshot) => {
+                if (snapshot.exists()) {
+                    showError("Tên đăng nhập này đã có người sử dụng!");
+                } else {
+                    // Tiến hành lưu thông tin lên Firebase
+                    db.ref('registeredUsers/' + user).set({
+                        name: name,
+                        password: pass, // Trong thực tế nên mã hóa mật khẩu
+                        role: role,
+                        createdAt: new Date().toISOString()
+                    }).then(() => {
+                        alert("Chúc mừng! Bạn đã đăng ký tài khoản [" + role.toUpperCase() + "] thành công.");
+                        window.location.href = 'login.html';
+                    }).catch(err => {
+                        showError("Lỗi hệ thống: " + err.message);
+                    });
+                }
+            });
+        };
+
+        function showError(msg) {
+            const errorDiv = document.getElementById('error-msg');
+            errorDiv.innerText = msg;
+            errorDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đặt Hàng Thành Công | Thủ Công Việt</title>
+    <link rel="stylesheet" href="css/style.css"> 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        .success-container {
+            max-width: 700px;
+            margin: 50px auto;
+            padding: 30px;
+            background: #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            text-align: center;
+        }
+        .success-icon {
+            color: green;
+            font-size: 4em;
+            margin-bottom: 15px;
+        }
+        #orderDetails {
+            text-align: left;
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        #orderDetails h3 {
+            color: #A34927;
+            border-bottom: 2px solid #A34927;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        .order-items-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 10px;
+        }
+        .order-items-list li {
+            border-bottom: 1px dotted #eee;
+            padding: 8px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .total-amount {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #A34927;
+            margin-top: 15px;
+            text-align: right;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+        .back-link {
+            display: block;
+            margin-top: 30px;
+            text-align: center;
+        }
+        .status-badge {
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .status-processed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <div class="container" style="padding: 15px 0; text-align: center; border-bottom: 1px solid #eee;">
+            <a href="index.html"><h1>Thủ Công Việt</h1></a>
+        </div>
+    </header>
+
+    <main>
+        <div class="success-container">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2>ĐẶT HÀNG THÀNH CÔNG!</h2>
+            <p>Cảm ơn bạn đã đặt hàng. Chi tiết đơn hàng của bạn:</p>
+
+            <div id="orderDetails">
+                <p>Đang tải chi tiết đơn hàng...</p>
+            </div>
+
+            <div class="back-link">
+                <a href="kiem-tra-don-hang.html" class="btn-primary" style="margin-right: 10px; display: inline-block; width: auto;"><i class="fas fa-search"></i> Tra Cứu Đơn Hàng Khác</a>
+                <a href="index.html" class="btn-primary" style="background-color: #555; display: inline-block; width: auto;">
+                    <i class="fas fa-home"></i> Về Trang Chủ
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function formatCurrency(amount) {
+            return amount.toLocaleString('vi-VN') + '₫';
+        }
+        
+        function getOrderIdFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('id');
+        }
+
+        function displayOrderDetails() {
+            const orderId = getOrderIdFromUrl();
+            const orderDetailsDiv = document.getElementById('orderDetails');
+            
+            if (!orderId) {
+                orderDetailsDiv.innerHTML = '<p style="color: red; text-align: center;">Lỗi: Không tìm thấy Mã Đơn Hàng.</p>';
+                return;
+            }
+
+            const orders = JSON.parse(localStorage.getItem('orders') || '[]');
+            const order = orders.find(o => o.orderId === orderId);
+
+            if (!order) {
+                orderDetailsDiv.innerHTML = `<p style="color: red; text-align: center;">Không tìm thấy đơn hàng: ${orderId}</p>`;
+                return;
+            }
+
+            // Lấy trạng thái thanh toán
+            let paidText = order.isPaid ? 'Đã thanh toán' : 'Chờ thanh toán';
+            let paidColor = order.isPaid ? 'green' : 'orange';
+
+            // Lấy trạng thái xử lý (Bổ sung)
+            const isProcessed = order.isProcessed || false;
+            let processedText = isProcessed ? 'ĐÃ XỬ LÝ' : 'CHỜ XỬ LÝ';
+            let processedClass = isProcessed ? 'status-processed' : 'status-pending';
+            let processedDate = isProcessed ? new Date(order.processedDate).toLocaleDateString('vi-VN') : '---';
+
+
+            let itemsHtml = order.items.map(item => `
+                <li>
+                    <span>${item.name}</span>
+                    <span>${item.qty} x ${formatCurrency(item.price)}</span>
+                </li>
+            `).join('');
+
+            orderDetailsDiv.innerHTML = `
+                <h3>Mã Đơn Hàng: ${order.orderId}</h3>
+                <div class="order-summary-info">
+                    <p><strong>Ngày đặt hàng:</strong> ${new Date(order.date).toLocaleDateString('vi-VN')}</p>
+                    <p><strong>Người nhận:</strong> ${order.customerName} (${order.phone})</p>
+                    <p><strong>Địa chỉ giao hàng:</strong> ${order.address}</p>
+                    
+                    <p><strong>Trạng thái xử lý:</strong> 
+                        <span class="status-badge ${processedClass}">${processedText}</span>
+                        ${isProcessed ? ` (Ngày xử lý: ${processedDate})` : ''}
+                    </p>
+
+                    <p><strong>Trạng thái TT:</strong> <span style="color: ${paidColor}; font-weight: bold;">${paidText}</span></p>
+                    <p><strong>Phương thức TT:</strong> ${order.paymentMethod}</p>
+                </div>
+                
+                <h4 style="margin-top: 20px;">Sản phẩm đã đặt:</h4>
+                <ul class="order-items-list">
+                    ${itemsHtml}
+                </ul>
+                
+                <div class="total-amount">
+                    Tổng thanh toán: ${formatCurrency(order.totalAmount)}
+                </div>
+            `;
+        }
+
+        document.addEventListener('DOMContentLoaded', displayOrderDetails);
+    </script>
+</body>
+</html>

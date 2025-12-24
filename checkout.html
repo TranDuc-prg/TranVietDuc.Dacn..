@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thanh Toán | Thủ Công Việt</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Thêm một số CSS để giao diện dễ nhìn hơn */
+        .checkout-wrapper {
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 40px;
+        }
+        .checkout-form label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .checkout-form input, .checkout-form textarea, .checkout-form select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .checkout-summary {
+            background: #f7f7f7;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        .summary-table th, .summary-table td {
+            padding: 8px 0;
+            text-align: left;
+            border-bottom: 1px dashed #ccc;
+        }
+        .summary-line {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+        }
+        .total-line {
+            border-top: 2px solid #333;
+            padding-top: 10px;
+            margin-top: 10px;
+            font-size: 1.2em;
+        }
+        .btn-primary {
+            background-color: #A34927;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #8C3E21;
+        }
+        /* QR Code CSS */
+        .qr-box {
+            margin-top: 15px;
+            text-align: center;
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .qr-box img {
+            max-width: 250px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        .qr-note {
+            font-size: 14px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <div class="container header-content">
+            <div class="logo">
+                <a href="index.html"><h1>Thủ Công Việt</h1></a>
+            </div>
+
+            <nav class="main-nav">
+                <ul>
+                    <li><a href="index.html">Trang Chủ</a></li>
+                    <li><a href="san-pham.html">Sản Phẩm</a></li>
+                    <li><a href="gioi-thieu.html">Giới Thiệu</a></li>
+                    <li><a href="lien-he.html">Liên Hệ</a></li>
+                </ul>
+            </nav>
+
+            <div class="auth-area">
+                <a href="kiem-tra-don-hang.html" class="nav-icon-link" title="Kiểm tra đơn hàng"><i class="fas fa-search-dollar"></i></a>
+                <a href="login.html" class="nav-icon-link"><i class="fas fa-user"></i></a>
+                <a href="cart.html" class="nav-icon-link cart-icon-count">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span class="cart-count">0</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container breadcrumb">
+            <a href="index.html">Trang chủ</a> / Thanh Toán
+        </div>
+
+        <section class="checkout-section">
+            <div class="container">
+                <h2>Thông Tin Thanh Toán</h2>
+
+                <div class="checkout-wrapper">
+                    <div class="checkout-form">
+                        <label>Họ tên:</label>
+                        <input type="text" id="fullname" placeholder="Nhập họ và tên">
+
+                        <label>Số điện thoại:</label>
+                        <input type="text" id="phone" placeholder="Nhập số điện thoại">
+
+                        <label>Địa chỉ giao hàng:</label>
+                        <textarea id="address" rows="3" placeholder="Nhập địa chỉ"></textarea>
+
+                        <label>Phương thức thanh toán:</label>
+                        <select id="payment-method">
+                            <option value="cod">Thanh toán khi nhận hàng (COD)</option>
+                            <option value="bank">Chuyển khoản ngân hàng (VietQR)</option>
+                            <option value="momo">Ví MoMo</option>
+                        </select>
+
+                        <div class="qr-box" id="bankQRBox">
+                            <h4>Quét mã QR để thanh toán</h4>
+                            <img id="bankQR" src="" alt="Mã QR ngân hàng">
+                            <div class="qr-note">
+                                Ngân hàng: <b>CAKE by VPBank</b><br>
+                                Chủ tài khoản: <b>TRAN VIET DUC</b><br>
+                                Nội dung: <b>Thanh toán Thủ Công Việt</b>
+                            </div>
+                        </div>
+
+                        <button id="btnConfirmOrder" class="btn btn-primary" style="margin-top: 15px;">
+                            Xác nhận đơn hàng
+                        </button>
+                    </div>
+
+                    <div class="checkout-summary">
+                        <h3>Đơn Hàng Của Bạn</h3>
+                        <table class="summary-table">
+                            <thead>
+                                <tr>
+                                    <th>Sản phẩm</th>
+                                    <th>Tổng</th>
+                                </tr>
+                            </thead>
+                            <tbody id="order-summary-body"></tbody>
+                        </table>
+                        <div class="summary-line">
+                            <span>Phí vận chuyển:</span>
+                            <span id="shipping-fee">30.000₫</span>
+                        </div>
+                        <div class="summary-line total-line">
+                            <strong>Tổng cộng:</strong>
+                            <strong id="order-total">0₫</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="main-footer"></footer>
+
+    <script>
+        const SHIPPING_FEE = 30000;
+        let currentOrderTotal = 0;
+        let currentCart = [];
+
+        // Hàm tiện ích
+        function getCart() {
+            try { return JSON.parse(localStorage.getItem("cart") || "[]"); }
+            catch { return []; }
+        }
+        function formatPrice(p) { return p.toLocaleString("vi-VN") + "₫"; }
+
+        // Hiển thị tóm tắt đơn hàng và tính tổng tiền
+        function renderOrderSummary() {
+            currentCart = getCart();
+            const tbody = document.getElementById("order-summary-body");
+            const totalEl = document.getElementById("order-total");
+            
+            if (currentCart.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="2" style="text-align:center;">Giỏ hàng trống!</td></tr>`;
+                totalEl.textContent = "0₫";
+                return;
+            }
+
+            let subtotal = 0;
+            tbody.innerHTML = "";
+            currentCart.forEach((item) => {
+                const totalItem = item.price * (item.quantity || 1); 
+                subtotal += totalItem;
+                const row = `<tr><td>${item.name} × ${item.quantity || 1}</td><td>${formatPrice(totalItem)}</td></tr>`;
+                tbody.insertAdjacentHTML("beforeend", row);
+            });
+
+            currentOrderTotal = subtotal + SHIPPING_FEE;
+            totalEl.textContent = formatPrice(currentOrderTotal);
+            window.currentOrderTotal = currentOrderTotal;
+        }
+
+        // Hiển thị QR khi chọn "Chuyển khoản ngân hàng"
+        document.getElementById("payment-method").addEventListener("change", (e) => {
+            const qrBox = document.getElementById("bankQRBox");
+            const qrImg = document.getElementById("bankQR");
+            const method = e.target.value;
+
+            if (method === "bank") {
+                const bankId = "CAKE"; 
+                const accountNo = "0366388104"; 
+                const accountName = "TRAN VIET DUC";
+                const amount = currentOrderTotal || 0; 
+                const info = "ThuCongViet"; 
+
+                qrImg.src = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.jpg?amount=${amount}&addInfo=${info}&accountName=${encodeURIComponent(accountName)}`;
+                qrBox.style.display = "block";
+            } else {
+                qrBox.style.display = "none";
+            }
+        });
+
+        
+        // HÀM LƯU VÀ HOÀN TẤT ĐƠN HÀNG
+        function finalizeOrder(customerInfo, paymentMethod, totalAmount) {
+            // 1. Tạo Mã Đơn Hàng duy nhất (Mô phỏng)
+            const orderId = 'TCV-' + Math.floor(Math.random() * 90000 + 10000).toString(); 
+
+            // 2. Chuẩn bị dữ liệu đơn hàng
+            const newOrder = {
+                orderId: orderId,
+                date: new Date().toISOString(),
+                customerName: customerInfo.fullname, 
+                phone: customerInfo.phone,
+                address: customerInfo.address,
+                paymentMethod: paymentMethod === 'cod' ? 'Thanh toán khi nhận hàng (COD)' : paymentMethod,
+                isPaid: paymentMethod !== 'cod', 
+                items: currentCart.map(item => ({ 
+                    name: item.name, 
+                    price: item.price, 
+                    qty: item.quantity 
+                })),
+                totalAmount: totalAmount,
+                shippingFee: SHIPPING_FEE
+            };
+
+            // 3. Lưu đơn hàng vào Local Storage
+            let orders = JSON.parse(localStorage.getItem('orders') || '[]');
+            orders.push(newOrder);
+            localStorage.setItem('orders', JSON.stringify(orders));
+
+            // 4. Xóa giỏ hàng
+            localStorage.removeItem('cart'); 
+
+            // 5. Chuyển hướng sang trang Thành công và truyền Mã Đơn Hàng
+            alert("🎉 Đơn hàng đã được xác nhận! Mã đơn hàng của bạn là: " + orderId);
+            window.location.href = `order-success.html?id=${orderId}`; 
+        }
+
+        // Xử lý sự kiện khi nhấn nút Xác nhận
+        document.getElementById("btnConfirmOrder").addEventListener("click", () => {
+            const fullname = document.getElementById("fullname").value.trim();
+            const phone = document.getElementById("phone").value.trim();
+            const address = document.getElementById("address").value.trim();
+            const method = document.getElementById("payment-method").value;
+
+            if (!fullname || !phone || !address) {
+                alert("Vui lòng nhập đầy đủ Họ tên, Số điện thoại và Địa chỉ giao hàng!");
+                return;
+            }
+
+            if (!currentCart || currentCart.length === 0 || currentOrderTotal === 0) {
+                alert("Giỏ hàng trống. Vui lòng thêm sản phẩm.");
+                window.location.href = "cart.html";
+                return;
+            }
+            
+            if (method === "bank" || method === "momo") {
+                const confirmPayment = confirm("Bạn đã hoàn tất thanh toán chuyển khoản/Ví điện tử chưa? Nhấn OK để xác nhận đơn hàng.");
+                if (!confirmPayment) {
+                    return; 
+                }
+            }
+
+            const customerInfo = { fullname, phone, address };
+            finalizeOrder(customerInfo, method, currentOrderTotal);
+        });
+
+        document.addEventListener("DOMContentLoaded", renderOrderSummary);
+    </script>
+</body>
+</html>

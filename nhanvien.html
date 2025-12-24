@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Quản Trị Toàn Diện - Thủ Công Việt</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --primary: #2c3e50; --secondary: #d35400; --success: #27ae60;
+            --danger: #e74c3c; --bg: #f4f7f6; --info: #2980b9; --text: #333;
+            --white: #ffffff; --gray: #95a5a6;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg); display: flex; min-height: 100vh; color: var(--text); }
+
+        /* SIDEBAR */
+        .sidebar { width: 260px; background: var(--primary); color: white; position: fixed; height: 100%; z-index: 10; transition: 0.3s; box-shadow: 4px 0 10px rgba(0,0,0,0.1); }
+        .sidebar-header { padding: 25px; text-align: center; background: #1a252f; border-bottom: 1px solid #34495e; }
+        .sidebar-menu { list-style: none; padding: 0; margin: 0; }
+        .sidebar-menu a {
+            display: block; padding: 15px 25px; color: #bdc3c7;
+            border-left: 4px solid transparent; cursor: pointer; text-decoration: none; transition: 0.2s;
+        }
+        .sidebar-menu a.active, .sidebar-menu a:hover {
+            background: #34495e; color: white; border-left: 4px solid var(--secondary);
+        }
+
+        /* MAIN CONTENT */
+        .content { margin-left: 260px; padding: 30px; width: calc(100% - 260px); transition: 0.3s; }
+        .card { background: var(--white); padding: 25px; border-radius: 15px; display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .card.active { display: block; animation: fade .4s ease-out; }
+        
+        /* DASHBOARD STATS */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-item { background: var(--white); padding: 20px; border-radius: 12px; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .stat-icon { width: 50px; height: 50px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: white; }
+
+        /* TABLE STYLES */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        th, td { padding: 15px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #f8f9fa; color: #666; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+        .img-preview { width: 45px; height: 45px; border-radius: 8px; object-fit: cover; border: 1px solid #ddd; }
+        .avatar { border-radius: 50%; }
+
+        /* BADGES & BUTTONS */
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; color: white; font-weight: bold; text-transform: uppercase; display: inline-block; }
+        .bg-new { background: #f1c40f; } .bg-done { background: var(--success); } .bg-cancel { background: var(--danger); }
+        .bg-called { background: var(--success); } .bg-waiting { background: var(--danger); }
+        
+        .phone-link { color: var(--info); text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; }
+        .phone-link:hover { text-decoration: underline; }
+
+        .btn { padding: 9px 16px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+        .btn-primary { background: var(--secondary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-info { background: var(--info); color: white; }
+        .btn-outline { border: 1px solid #ddd; background: none; color: #666; }
+        .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+        /* MODAL */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background: white; padding: 30px; width: 550px; border-radius: 15px; position: relative; max-height: 90vh; overflow-y: auto; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; outline: none; }
+        label { font-size: 12px; font-weight: bold; color: #555; display: block; margin-bottom: 4px; }
+
+        /* TOAST */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+        .toast { background: white; padding: 15px 25px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 10px; display: flex; align-items: center; gap: 15px; border-left: 5px solid var(--secondary); animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        #invoice-print { display: none; padding: 40px; }
+        @media print {
+            body * { visibility: hidden; }
+            #invoice-print, #invoice-print * { visibility: visible; }
+            #invoice-print { display: block; position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h3 style="margin:0;">THỦ CÔNG VIỆT</h3>
+            <small style="color: var(--gray);">Hệ Thống Nhân Viên</small>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a id="link-order" class="active" onclick="switchSection('order')"><i class="fas fa-shopping-cart"></i> Đơn hàng</a></li>
+            <li><a id="link-sanpham" onclick="switchSection('sanpham')"><i class="fas fa-boxes"></i> Kho Sản phẩm</a></li>
+            <li><a id="link-nghenhan" onclick="switchSection('nghenhan')"><i class="fas fa-user-tie"></i> Nghệ nhân</a></li>
+            <li><a id="link-khachhang" onclick="switchSection('khachhang')"><i class="fas fa-gem"></i> Khách Đăng Ký</a></li>
+            <li style="margin-top: 20px;"><a href="index.html" target="_blank"><i class="fas fa-external-link-alt"></i> Xem Website</a></li>
+        </ul>
+    </aside>
+
+    <main class="content">
+        <div class="stats-grid">
+            <div class="stat-item"><div class="stat-icon" style="background:var(--info)"><i class="fas fa-receipt"></i></div><div><small>Đơn hàng</small><div id="stat-orders" style="font-weight:bold;font-size:1.2rem">0</div></div></div>
+            <div class="stat-item"><div class="stat-icon" style="background:var(--success)"><i class="fas fa-wallet"></i></div><div><small>Doanh thu</small><div id="stat-revenue" style="font-weight:bold;font-size:1.2rem">0đ</div></div></div>
+            <div class="stat-item"><div class="stat-icon" style="background:var(--secondary)"><i class="fas fa-box"></i></div><div><small>Sản phẩm</small><div id="stat-products" style="font-weight:bold;font-size:1.2rem">0</div></div></div>
+        </div>
+
+        <section id="order" class="card active">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2><i class="fas fa-clipboard-list"></i> Quản lý Đơn hàng</h2>
+                <button class="btn btn-outline btn-sm" onclick="location.reload()"><i class="fas fa-sync"></i> Làm mới</button>
+            </div>
+            <table>
+                <thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Sản phẩm</th><th>Tổng tiền</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                <tbody id="oBody"></tbody>
+            </table>
+        </section>
+
+        <section id="sanpham" class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2><i class="fas fa-tags"></i> Kho Sản Phẩm</h2>
+                <button class="btn btn-primary" onclick="openProductModal()"><i class="fas fa-plus"></i> Thêm Sản Phẩm</button>
+            </div>
+            <table>
+                <thead><tr><th>Ảnh</th><th>Tên sản phẩm</th><th>Thể loại</th><th>Giá bán</th><th>Kho</th><th>Thao tác</th></tr></thead>
+                <tbody id="pBody"></tbody>
+            </table>
+        </section>
+
+        <section id="nghenhan" class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2><i class="fas fa-user-circle"></i> Danh sách Nghệ nhân</h2>
+                <button class="btn btn-primary" onclick="openArtisanModal()"><i class="fas fa-user-plus"></i> Thêm Nghệ nhân</button>
+            </div>
+            <table>
+                <thead><tr><th>Ảnh</th><th>Họ tên</th><th>Làng nghề</th><th>Danh hiệu</th><th>Thao tác</th></tr></thead>
+                <tbody id="aBody"></tbody>
+            </table>
+        </section>
+
+        <section id="khachhang" class="card">
+            <h2><i class="fas fa-gem"></i> Khách Hàng Đăng Ký Tư Vấn</h2>
+            <table>
+                <thead><tr><th>Họ tên</th><th>Số điện thoại</th><th>Trạng thái / Ngày</th><th>Thao tác</th></tr></thead>
+                <tbody id="cBody"></tbody>
+            </table>
+        </section>
+    </main>
+
+    <div id="pModal" class="modal"><div class="modal-content">
+        <h3 id="pTitle">Sản phẩm</h3>
+        <input type="hidden" id="pId">
+        <label>Tên sản phẩm</label><input id="pName" placeholder="Tên sản phẩm...">
+        <div style="display: flex; gap: 15px;">
+            <div style="flex: 1;"><label>Thể loại</label>
+                <select id="pCat">
+                    <option value="Gốm sứ">Gốm sứ</option>
+                    <option value="Mây tre đan">Mây tre đan</option>
+                    <option value="Đồ gỗ">Đồ gỗ</option>
+                    <option value="Lụa tơ tằm">Lụa tơ tằm</option>
+                    <option value="Tranh dân gian">Tranh dân gian</option>
+                </select>
+            </div>
+            <div style="flex: 1;"><label>Số lượng kho</label><input id="pStock" type="number" value="10"></div>
+        </div>
+        <div style="display: flex; gap: 15px;">
+            <div style="flex: 1;"><label>Giá gốc (đ)</label><input id="pPrice" type="number"></div>
+            <div style="flex: 1;"><label>Giảm (%)</label><input id="pSale" type="number" value="0"></div>
+        </div>
+        <label>Mô tả ngắn</label><textarea id="pDesc" rows="2"></textarea>
+        <label>Hình ảnh</label><input type="file" accept="image/*" onchange="encodeImg(this)">
+        <div style="text-align: right; margin-top: 10px;">
+            <button class="btn btn-outline" onclick="closeAllModals()">Hủy bỏ</button>
+            <button class="btn btn-primary" onclick="saveProduct()">Lưu sản phẩm</button>
+        </div>
+    </div></div>
+
+    <div id="aModal" class="modal"><div class="modal-content">
+        <h3 id="aTitle">Thông tin Nghệ nhân</h3>
+        <input type="hidden" id="aId">
+        <label>Họ tên nghệ nhân</label><input id="aName">
+        <label>Làng nghề / Chuyên môn</label><input id="aVillage">
+        <label>Danh hiệu</label><input id="aAward" placeholder="VD: Nghệ nhân Ưu tú">
+        <label>Tiểu sử</label><textarea id="aText" rows="4"></textarea>
+        <label>Ảnh chân dung</label><input type="file" onchange="encodeImg(this)">
+        <div style="text-align: right; margin-top: 10px;">
+            <button class="btn btn-outline" onclick="closeAllModals()">Hủy</button>
+            <button class="btn btn-primary" onclick="saveArtisan()">Lưu thông tin</button>
+        </div>
+    </div></div>
+
+    <div id="toast-container" class="toast-container"></div>
+    <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"></audio>
+
+    <div id="invoice-print">
+        <center>
+            <h1>THỦ CÔNG VIỆT</h1>
+            <p>Địa chỉ: Làng nghề truyền thống Việt Nam | Hotline: 0366.388.104</p>
+            <hr>
+            <h2>HÓA ĐƠN BÁN HÀNG</h2>
+        </center>
+        <div id="inv-content" style="margin: 30px 0; line-height: 2;"></div>
+        <hr>
+        <center><p>Cảm ơn quý khách đã ủng hộ tinh hoa Việt!</p></center>
+    </div>
+
+    <script>
+        // Cấu hình Firebase - Thay thế URL nếu cần
+        const firebaseConfig = { databaseURL: "https://thucongviet-system-default-rtdb.firebaseio.com" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let tempImg = "";
+
+        // Chuyển đổi các Section
+        function switchSection(id) {
+            document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.sidebar-menu a').forEach(a => a.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.getElementById('link-' + id).classList.add('active');
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+            tempImg = "";
+        }
+
+        function encodeImg(input) {
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => { tempImg = reader.result; };
+            if (file) reader.readAsDataURL(file);
+        }
+
+        function showToast(message, icon = 'fa-bell') {
+            const container = document.getElementById('toast-container');
+            const sound = document.getElementById('notif-sound');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `
+                <i class="fas ${icon}" style="color: var(--secondary); font-size: 20px;"></i>
+                <div><strong style="display:block">Thông báo</strong><small>${message}</small></div>
+            `;
+            container.appendChild(toast);
+            sound.play().catch(() => {});
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 5000);
+        }
+
+        // PRODUCTS LOGIC
+        function openProductModal(id = null, data = null) {
+            document.getElementById('pId').value = id || "";
+            document.getElementById('pName').value = data?.info1 || "";
+            document.getElementById('pPrice').value = data?.info2 || "";
+            document.getElementById('pSale').value = data?.sale || 0;
+            document.getElementById('pStock').value = data?.info3 || 0;
+            document.getElementById('pDesc').value = data?.desc || "";
+            document.getElementById('pCat').value = data?.category || "Gốm sứ";
+            tempImg = data?.img || "";
+            document.getElementById('pTitle').innerText = id ? "Sửa sản phẩm" : "Thêm sản phẩm mới";
+            document.getElementById('pModal').style.display = 'flex';
+        }
+
+        function saveProduct() {
+            const id = document.getElementById('pId').value;
+            const obj = {
+                info1: document.getElementById('pName').value,
+                info2: document.getElementById('pPrice').value,
+                info3: document.getElementById('pStock').value,
+                sale: document.getElementById('pSale').value,
+                category: document.getElementById('pCat').value,
+                desc: document.getElementById('pDesc').value,
+                img: tempImg || "https://via.placeholder.com/150"
+            };
+            if (id) db.ref('products/' + id).update(obj);
+            else db.ref('products').push(obj);
+            closeAllModals();
+            showToast("Lưu sản phẩm thành công", "fa-check");
+        }
+
+        // ARTISAN LOGIC
+        function openArtisanModal(id = null, data = null) {
+            document.getElementById('aId').value = id || "";
+            document.getElementById('aName').value = data?.info1 || "";
+            document.getElementById('aVillage').value = data?.info2 || "";
+            document.getElementById('aAward').value = data?.award || "";
+            document.getElementById('aText').value = data?.text || "";
+            tempImg = data?.img || "";
+            document.getElementById('aModal').style.display = 'flex';
+        }
+
+        function saveArtisan() {
+            const id = document.getElementById('aId').value;
+            const obj = {
+                info1: document.getElementById('aName').value,
+                info2: document.getElementById('aVillage').value,
+                award: document.getElementById('aAward').value,
+                text: document.getElementById('aText').value,
+                img: tempImg || "https://via.placeholder.com/150"
+            };
+            if(id) db.ref('artisans/' + id).update(obj);
+            else db.ref('artisans').push(obj);
+            closeAllModals();
+        }
+            // Thêm hàm này để các nút Duyệt/Hủy bên trên chạy được
+function updateStatus(id, newStatus) {
+    db.ref('orders/' + id).update({ 
+        status: newStatus 
+    }).then(() => {
+        showToast("Đã cập nhật trạng thái đơn hàng", "fa-check-circle");
+    });
+}
+// Hàm in hóa đơn (Cũng phải ở ngoài)
+function printInvoice(encodedData, key) {
+    const data = JSON.parse(decodeURIComponent(encodedData));
+    const price = parseInt(data.price || data.total || 0);
+    const content = `
+        <p><b>Mã đơn:</b> #${key.slice(-5).toUpperCase()}</p>
+        <p><b>Khách hàng:</b> ${data.customer || data.name || 'Khách lẻ'}</p>
+        <p><b>Sản phẩm:</b> ${data.product || 'N/A'}</p>
+        <p><b>Thành tiền:</b> <b>${price.toLocaleString()}đ</b></p>
+    `;
+    document.getElementById('inv-content').innerHTML = content;
+    window.print();
+}
+
+        function renderAll() {
+    // 1. Render Orders (Đơn hàng)
+    db.ref('orders').on('value', s => {
+        let h = "", totalRev = 0, count = 0;
+        s.forEach(c => {
+            const d = c.val();
+            const price = parseInt(d.price || d.total || 0);
+            
+            // CHỈ TÍNH DOANH THU CHO ĐƠN HOÀN THÀNH HOẶC ĐÃ THANH TOÁN
+            if(['Hoàn thành', 'Đã thanh toán', 'Xong'].includes(d.status)) totalRev += price;
+            count++;
+
+            // Phân loại màu sắc Trạng thái
+            let statusClass = 'bg-new'; // Mặc định: Mới/Chờ
+            if(d.status === 'Hoàn thành' || d.status === 'Xong') statusClass = 'bg-done';
+            if(d.status === 'Đã hủy') statusClass = 'bg-cancel';
+
+            h += `<tr>
+    <td>#${c.key.slice(-5).toUpperCase()}</td>
+    <td><b>${d.customer || d.name || 'Khách lẻ'}</b><br><small>${d.phone || ''}</small></td>
+    <td>${d.product || 'N/A'}</td>
+    <td style="color:var(--secondary); font-weight:bold">${price.toLocaleString()}đ</td>
+    <td><span class="badge ${d.status=='Mới'?'bg-new': (d.status=='Đã hủy'?'bg-cancel':'bg-done')}">${d.status || 'Mới'}</span></td>
+    
+    <td>
+        <button class="btn btn-sm btn-info" onclick='printInvoice(${JSON.stringify(d)}, "${c.key}")'>
+            <i class="fas fa-print"></i>
+        </button>
+
+        ${(d.status !== 'Hoàn thành' && d.status !== 'Đã hủy') ? `
+            <button class="btn btn-sm btn-outline" style="color:green; border-color:green" onclick="updateStatus('${c.key}', 'Hoàn thành')">
+                <i class="fas fa-check"></i>
+            </button>
+            <button class="btn btn-sm btn-outline" style="color:red; border-color:red" onclick="updateStatus('${c.key}', 'Đã hủy')">
+                <i class="fas fa-times"></i>
+            </button>
+        ` : ''}
+
+        <button class="btn btn-sm btn-danger" onclick="if(confirm('Xóa đơn?')) db.ref('orders/${c.key}').remove()">
+            <i class="fas fa-trash"></i>
+        </button>
+    </td>
+</tr>`;
+        });
+        document.getElementById('oBody').innerHTML = h || "<tr><td colspan='6'>Chưa có đơn hàng nào</td></tr>";
+        document.getElementById('stat-orders').innerText = count;
+        document.getElementById('stat-revenue').innerText = totalRev.toLocaleString() + 'đ';
+    });
+
+           // --- CẬP NHẬT // Render Products & Artisans ---
+
+// 2. Render Products (Sản phẩm)
+db.ref('products').on('value', s => {
+    let h = "", pCount = 0;
+    s.forEach(c => {
+        const d = c.val(); 
+        pCount++;
+        
+        // Cảnh báo kho: Nếu số lượng < 5 sẽ hiện chữ đỏ
+        const stock = parseInt(d.info3 || 0);
+        const stockStyle = stock < 5 ? "color:var(--danger); font-weight:bold;" : "";
+        const stockLabel = stock < 5 ? `<br><small style="color:var(--danger)">Sắp hết hàng!</small>` : "";
+
+        h += `<tr>
+            <td><img src="${d.img || 'https://via.placeholder.com/50'}" class="img-preview"></td>
+            <td><b>${d.info1}</b><br><small style="color:var(--gray)">${c.key.slice(-6).toUpperCase()}</small></td>
+            <td><span class="cat-tag" style="background:#f0f2f5; padding:4px 8px; border-radius:6px; font-size:11px; color:var(--primary)">${d.category || 'Chưa phân loại'}</span></td>
+            <td>
+                ${Number(d.info2).toLocaleString()}đ 
+                ${d.sale > 0 ? `<small style="color:var(--danger); display:block">Giảm ${d.sale}%</small>` : ''}
+            </td>
+            <td style="${stockStyle}">${stock} ${stockLabel}</td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick='openProductModal("${c.key}", ${JSON.stringify(d).replace(/'/g, "&apos;")})'>
+                    <i class="fas fa-edit"></i> Sửa
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="if(confirm('Xóa sản phẩm này khỏi kho?')) db.ref('products/${c.key}').remove()">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>`;
+    });
+    document.getElementById('pBody').innerHTML = h || "<tr><td colspan='6'>Kho hàng trống</td></tr>";
+    document.getElementById('stat-products').innerText = pCount;
+});
+
+// 3. Render Artisans (Nghệ nhân)
+db.ref('artisans').on('value', s => {
+    let h = "";
+    s.forEach(c => {
+        const d = c.val();
+        h += `<tr>
+            <td><img src="${d.img || 'https://via.placeholder.com/50'}" class="img-preview avatar"></td>
+            <td><b>${d.info1}</b></td>
+            <td><i class="fas fa-map-marker-alt" style="color:var(--secondary)"></i> ${d.info2}</td>
+            <td><span style="color:var(--info); font-size:12px"><i class="fas fa-medal"></i> ${d.award || 'Nghệ nhân'}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick='openArtisanModal("${c.key}", ${JSON.stringify(d).replace(/'/g, "&apos;")})'>
+                    <i class="fas fa-user-edit"></i> Sửa
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="if(confirm('Xóa thông tin nghệ nhân này?')) db.ref('artisans/${c.key}').remove()">
+                    <i class="fas fa-user-slash"></i>
+                </button>
+            </td>
+        </tr>`;
+    });
+    document.getElementById('aBody').innerHTML = h || "<tr><td colspan='5'>Chưa có dữ liệu nghệ nhân</td></tr>";
+});
+
+            // D. RENDER KHÁCH ĐĂNG KÝ (Đồng bộ với Trang Chủ)
+        db.ref('khach_hang').on('value', s => {
+            let h = "";
+            s.forEach(c => {
+                const d = c.val();
+                const status = d.trangThaiCall || 'Chưa gọi';
+                const statusClass = status === 'Đã gọi' ? 'bg-called' : 'bg-waiting';
+                const rawPhone = (d.soDienThoai || "").replace(/\s+/g, '');
+
+                h += `<tr>
+                    <td><b>${d.hoTen || "N/A"}</b></td>
+                    <td>
+                        <a href="tel:${rawPhone}" class="phone-link">
+                            <i class="fas fa-phone-alt"></i> ${d.soDienThoai || "N/A"}
+                        </a>
+                    </td>
+                    <td>
+                        <span class="badge ${statusClass}">${status}</span><br>
+                        <small style="color:#999; font-size:10px">${d.ngayDangKy || "-"}</small>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm ${status === 'Đã gọi' ? 'btn-outline' : 'btn-primary'}" 
+                                onclick="updateCallStatus('${c.key}', '${status === 'Đã gọi' ? 'Chưa gọi' : 'Đã gọi'}')">
+                            <i class="fas ${status === 'Đã gọi' ? 'fa-undo' : 'fa-check'}"></i> 
+                            ${status === 'Đã gọi' ? 'Gọi lại' : 'Xong'}
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="if(confirm('Xóa khách?')) db.ref('khach_hang/${c.key}').remove()">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById('cBody').innerHTML = h || "<tr><td colspan='4'>Chưa có dữ liệu</td></tr>";
+        });
+    }
+// Hàm cập nhật trạng thái - Phải để ở ngoài để nút onclick có thể gọi được
+window.updateCallStatus = function(id, newStatus) {
+    db.ref('khach_hang/' + id).update({ 
+        trangThaiCall: newStatus 
+    })
+    .then(() => {
+        // Nếu có hàm showToast thì gọi, không thì dùng alert để kiểm tra
+        if (typeof showToast === "function") {
+            showToast("Đã cập nhật: " + newStatus, "fa-check-circle");
+        } else {
+            console.log("Đã cập nhật trạng thái thành công");
+        }
+    })
+    .catch((error) => {
+        console.error("Lỗi cập nhật:", error);
+        alert("Không thể cập nhật trạng thái!");
+    });
+};
+        function updateCallStatus(id, newStatus) {
+            db.ref('customerRegistrations/' + id).update({ callStatus: newStatus })
+              .then(() => showToast("Đã cập nhật trạng thái", "fa-check-circle"));
+        }
+
+       function printInvoice(data, key) {
+    // Logic lấy giá tiền giống với lúc render bảng
+    const price = parseInt(data.price || data.total || 0);
+    
+    const content = `
+        <p><b>Mã đơn:</b> #${key.slice(-5).toUpperCase()}</p>
+        <p><b>Khách hàng:</b> ${data.customer || data.name || 'Khách lẻ'}</p>
+        <p><b>Số điện thoại:</b> ${data.phone || 'N/A'}</p>
+        <p><b>Sản phẩm:</b> ${data.product || 'N/A'}</p>
+        <p><b>Thành tiền:</b> <span style="font-size: 20px; font-weight: bold;">${price.toLocaleString()}đ</span></p>
+    `;
+    document.getElementById('inv-content').innerHTML = content;
+    window.print();
+}
+
+        // Realtime Notifications
+        let isFirstLoad = true;
+        db.ref('orders').limitToLast(1).on('child_added', s => {
+            if(isFirstLoad) return;
+            showToast(`Có đơn hàng mới từ ${s.val().customer || 'Khách lẻ'}`, 'fa-shopping-cart');
+        });
+        db.ref('customerRegistrations').limitToLast(1).on('child_added', s => {
+            if(isFirstLoad) { isFirstLoad = false; return; }
+            showToast(`Khách đăng ký mới: ${s.val().fullName || s.val().name}`, 'fa-user-plus');
+        });
+
+        document.addEventListener('DOMContentLoaded', renderAll);
+    </script>
+</body>
+</html>
